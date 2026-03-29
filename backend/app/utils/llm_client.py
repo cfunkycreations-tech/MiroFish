@@ -4,15 +4,24 @@ LLM客户端封装
 """
 
 import json
+import logging
 import re
+import time
 from typing import Optional, Dict, Any, List
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, APIError
 
 from ..config import Config
+
+logger = logging.getLogger('mirofish.llm')
 
 
 class LLMClient:
     """LLM客户端"""
+    
+    # Retry configuration for rate limit errors
+    # Gemini free tier can impose 10-40s delays, so use aggressive backoff
+    MAX_RETRIES = 5
+    RETRY_BASE_DELAY = 15  # seconds (15s, 30s, 60s, 120s, 240s)
     
     def __init__(
         self,
@@ -31,6 +40,35 @@ class LLMClient:
             api_key=self.api_key,
             base_url=self.base_url
         )
+        
+        logger.info(f"LLMClient initialized: model={self.model}, base_url={self.base_url}")
+    
+    def _call_with_retry(self, **kwargs) -> Any:
+        """
+        Call the OpenAI API with automatic retry on rate limit (429) errors.
+        Uses exponential backoff: 5s, 10s, 20s delays.
+        """
+        last_error = None
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                return self.client.chat.completions.create(**kwargs)
+            except RateLimitError as e:
+                last_error = e
+                if attempt < self.MAX_RETRIES:
+                    delay = self.RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        f"Rate limited (429). Retry {attempt + 1}/{self.MAX_RETRIES} "
+                        f"in {delay}s. Error: {e}"
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Rate limit exceeded after {self.MAX_RETRIES} retries: {e}")
+                    raise
+            except APIError as e:
+                # Log the full error details for debugging
+                logger.error(f"API error (code={e.status_code}): {e}")
+                raise
+        raise last_error  # Should not reach here, but just in case
     
     def chat(
         self,
@@ -61,7 +99,21 @@ class LLMClient:
         if response_format:
             kwargs["response_format"] = response_format
         
-        response = self.client.chat.completions.create(**kwargs)
+        try:
+            response = self._call_with_retry(**kwargs)
+        except Exception as e:
+            # If response_format is not supported (e.g. some providers), retry without it
+            if response_format and not isinstance(e, RateLimitError):
+                logger.warning(
+                    f"LLM call failed with response_format={response_format}, "
+                    f"retrying without it. Error: {e}"
+                )
+                kwargs.pop("response_format", None)
+                response = self._call_with_retry(**kwargs)
+            else:
+                logger.error(f"LLM call failed: {e}")
+                raise
+        
         content = response.choices[0].message.content
         # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
         content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
@@ -99,5 +151,6 @@ class LLMClient:
         try:
             return json.loads(cleaned_response)
         except json.JSONDecodeError:
-            raise ValueError(f"LLM返回的JSON格式无效: {cleaned_response}")
+            logger.error(f"LLM returned invalid JSON: {cleaned_response[:500]}...")
+            raise ValueError(f"LLM返回的JSON格式无效: {cleaned_response[:200]}")
 
