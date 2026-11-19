@@ -108,9 +108,18 @@ def assemble_frontend(stage):
 
 
 def write_requirements(stage):
-    src = os.path.join(DESKTOP_DIR, 'requirements-desktop.txt')
-    dst = os.path.join(stage, 'app', 'backend', 'requirements-desktop.txt')
-    shutil.copy2(src, dst)
+    for name in ('requirements-desktop.txt', 'requirements-desktop-slim.txt'):
+        src = os.path.join(DESKTOP_DIR, name)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(stage, 'app', 'backend', name))
+
+    # 轻量模式补丁脚本（Setup.bat 在安装完成后调用）
+    tools_src = os.path.join(REPO_ROOT, 'tools')
+    dst_tools = os.path.join(stage, 'tools')
+    os.makedirs(dst_tools, exist_ok=True)
+    patch = os.path.join(tools_src, 'patch_oasis_recsys.py')
+    if os.path.exists(patch):
+        shutil.copy2(patch, os.path.join(dst_tools, 'patch_oasis_recsys.py'))
 
 
 def populate_runtime(stage, wheels_dir, embed_dir):
@@ -171,17 +180,36 @@ def copy_tools(stage, tools_dir):
 
 
 def write_console_bat(stage):
+    """控制台版启动脚本：先确保环境已初始化，再带日志窗口启动（排错用）。"""
     path = os.path.join(stage, f'{APP_NAME}-Console.bat')
-    with open(path, 'w', encoding='utf-8', newline='\r\n') as f:
-        f.write('@echo off\n'
-                'chcp 65001 >nul\n'
-                'title MiroFish 控制台\n'
-                'cd /d "%~dp0"\n'
-                'echo 正在启动 MiroFish（关闭此窗口即退出程序）...\n'
-                'echo 如果窗口一闪而过，请先在 MiroFish.exe 同目录查看 Setup.bat 是否执行成功。\n'
-                'echo.\n'
-                f'"{APP_NAME}.exe" --console --no-setup\n'
-                'pause\n')
+    with open(path, 'w', encoding='utf-8', newline='') as f:
+        f.write('@echo off\r\n'
+                'chcp 65001 >nul\r\n'
+                'title MiroFish 控制台（排错用）\r\n'
+                'cd /d "%~dp0"\r\n'
+                'echo ============================================================\r\n'
+                'echo  MiroFish 控制台模式：程序窗口会打开，同时这个黑窗口显示日志\r\n'
+                'echo ============================================================\r\n'
+                'echo.\r\n'
+                'if not exist "runtime\\venv\\Scripts\\python.exe" (\r\n'
+                '    if not exist "runtime\\python\\python.exe" (\r\n'
+                '        echo [初始化] 还没有安装运行环境，先执行 Setup.bat ...\r\n'
+                '        echo.\r\n'
+                '        call "%~dp0Setup.bat" --no-pause\r\n'
+                '        if errorlevel 1 (\r\n'
+                '            echo.\r\n'
+                '            echo [X] 初始化失败，请把上面的报错信息截图反馈。\r\n'
+                '            pause\r\n'
+                '            exit /b 1\r\n'
+                '        )\r\n'
+                '    )\r\n'
+                ')\r\n'
+                'echo 正在启动 MiroFish（关闭程序窗口即退出）...\r\n'
+                'echo.\r\n'
+                f'"{APP_NAME}.exe" --console\r\n'
+                'echo.\r\n'
+                'echo [退出] 程序已结束。\r\n'
+                'pause\r\n')
 
 
 def write_readme(stage, mode):
@@ -211,7 +239,14 @@ def write_readme(stage, mode):
            ZEP_API_KEY      Zep Cloud 记忆图谱 Key（https://app.getzep.com/ 有免费额度）
     3. 保存后重启 MiroFish.exe
 
-三、出问题时
+三、磁盘空间不够？
+    安装需要约 3 GB 峰值空间（完成后约 1.1 GB）。如果空间紧张：
+      * 双击 Setup-Slim.bat（或运行 Setup.bat --slim）：不安装 torch，
+        只需约 1.5 GB 峰值、完成后约 0.4 GB；
+        twitter 平台的“个性化推荐”会退化为随机/热度推荐，其余功能不变。
+      * 所有缓存都在安装目录的 runtime\.cache，不会占用 C 盘。
+
+四、出问题时
     * 双击 MiroFish-Console.bat：保留控制台窗口，直接看到报错。
     * 日志：%APPDATA%\\MiroFish\\logs\\desktop.log
     * 在线安装版下载中断：重新双击 MiroFish.exe 或 Setup.bat。
@@ -219,11 +254,11 @@ def write_readme(stage, mode):
       可从 https://developer.microsoft.com/microsoft-edge/webview2/ 安装；
       临时可用  MiroFish.exe --browser  在默认浏览器中使用。
 
-四、网络与安全
+五、网络与安全
     后端仅监听 127.0.0.1 的随机空闲端口，不对外开放。
     模拟运行时会调用你在 .env 中配置的 LLM / Zep 云服务。
 
-五、许可
+六、许可
     AGPL-3.0，详见 LICENSE。
 """
     with open(os.path.join(stage, 'README.txt'), 'w', encoding='utf-8', newline='\r\n') as f:
@@ -301,6 +336,7 @@ def main():
     write_requirements(stage)
     shutil.copy2(args.exe, os.path.join(stage, f'{APP_NAME}.exe'))
     shutil.copy2(os.path.join(DESKTOP_DIR, 'Setup.bat'), os.path.join(stage, 'Setup.bat'))
+    shutil.copy2(os.path.join(DESKTOP_DIR, 'Setup-Slim.bat'), os.path.join(stage, 'Setup-Slim.bat'))
     copy_tools(stage, args.tools)
     write_console_bat(stage)
     write_readme(stage, args.mode)

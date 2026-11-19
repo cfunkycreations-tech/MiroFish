@@ -32,6 +32,22 @@ echo   安装目录: %ROOT%
 echo   缓存目录: %CACHE%   ^(全部在本盘，不占用 C 盘^)
 echo.
 
+rem ---------------- 模式选择 ----------------
+rem   --slim : 轻量安装（不装 torch，约 400 MB；twitter 个性化推荐退化为随机/热度）
+rem   默认   : 完整安装（含 torch，约 1.1 GB；所有推荐算法可用）
+set "SLIM=0"
+for %%A in (%*) do (
+    if /i "%%~A"=="--slim" set "SLIM=1"
+    if /i "%%~A"=="--full" set "SLIM=0"
+)
+set "REQSLIM=%ROOT%app\backend\requirements-desktop-slim.txt"
+if "%SLIM%"=="1" (
+    set "REQ=%REQSLIM%"
+    echo   [!] 轻量模式：不安装 torch（省约 700 MB 磁盘与下载时间）
+    echo       twitter 平台的个性化推荐会退化为随机/热度推荐。
+    echo.
+)
+
 if /i "%~1"=="--clean" goto :cleanonly
 
 rem ---------------- 0. 磁盘空间检查 ----------------
@@ -39,11 +55,13 @@ for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "[math]::Floo
 if not defined FREEMB set "FREEMB=0"
 set /a FREEGB=%FREEMB%/1024
 echo [0/5] %DRIVE% 剩余空间: %FREEGB% GB
-if %FREEMB% LSS 3000 (
+set "NEEDMB=3000"
+if "%SLIM%"=="1" set "NEEDMB=1500"
+if %FREEMB% LSS %NEEDMB% (
     echo.
-    echo [X] 空间不足：本盘至少需要 3 GB 可用空间。
-    echo     安装依赖峰值约 2.5 GB(含下载缓存)，安装完成后自动清理缓存，
-    echo     实际占用约 1.1 GB。
+    echo [X] 空间不足：本盘至少需要 %NEEDMB% MB 可用空间。
+    echo     安装过程峰值约 2.5 GB(含下载缓存)，完成后自动清理缓存，
+    echo     实际占用：完整版约 1.1 GB，轻量版约 0.4 GB。
     echo.
     echo     建议：把整个文件夹移动到空间更大的磁盘后重试，
     echo     或先清理本盘空间。可用 "%~nx0 --clean" 清理上次残留缓存。
@@ -133,6 +151,14 @@ if exist "%UV%" (
             -i https://pypi.tuna.tsinghua.edu.cn/simple ^
             --trusted-host pypi.tuna.tsinghua.edu.cn
     )
+)
+
+if "%SLIM%"=="1" (
+    echo       补装 OASIS 本体（轻量模式专用）...
+    if exist "%UV%" (
+        "%UV%" pip install --python "%PY%" --no-deps camel-oasis==0.2.5
+    )
+    "%PY%" "%ROOT%tools\patch_oasis_recsys.py" --slim "%VENV%\Lib\site-packages"
 )
 
 rem ---------------- 4. 校验 ----------------
