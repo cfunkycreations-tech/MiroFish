@@ -115,7 +115,8 @@ static int run_setup(const wchar_t *app_dir)
     if (answer != IDYES) return 0;
 
     wchar_t cmd[PATH_CAP * 2];
-    _snwprintf(cmd, PATH_CAP * 2, L"cmd.exe /c \"\"%ls\"\"", script);
+    /* 传入 --no-pause，避免 Setup.bat 结束后再等一次按键 */
+    _snwprintf(cmd, PATH_CAP * 2, L"cmd.exe /c \"\"%ls\" --no-pause\"", script);
 
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -160,9 +161,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     if (!find_python(app_dir, console_mode, python)) {
         if (has_flag(argc, argv, L"--no-setup") || !run_setup(app_dir)) {
             if (!find_python(app_dir, console_mode, python)) {
-                show_error(L"MiroFish 尚未初始化：找不到 Python 运行环境。",
-                           L"请双击安装目录中的 Setup.bat 完成初始化（需要联网），"
-                           L"或使用完整离线版安装包。");
+                /* 初始化失败：把残留的下载文件改名，避免下次因 .part 冲突失败 */
+                wchar_t part[PATH_CAP];
+                _snwprintf(part, PATH_CAP, L"%ls\\runtime\\.cache", app_dir);
+                if (file_exists(part)) {
+                    wchar_t aside[PATH_CAP];
+                    _snwprintf(aside, PATH_CAP, L"%ls.stale", part);
+                    MoveFileExW(part, aside, MOVEFILE_REPLACE_EXISTING);
+                }
+                show_error(L"MiroFish 初始化未完成：找不到 Python 运行环境。",
+                           L"常见原因：\n  1) 磁盘空间不足（安装需要约 3 GB 可用空间）\n  2) 网络中断（重新运行会自动续传）\n\n请双击安装目录中的 Setup.bat 重新初始化，或在 MiroFish-Console.bat 里查看详细报错。\n也可以使用完整离线版安装包（无需联网）。");
                 return 3;
             }
         }
