@@ -5,33 +5,33 @@
 # Install: pip install -r requirements.txt
 # ===========================================
 
-# ============= 核心框架 =============
+# ============= Core framework =============
 flask>=3.0.0
 flask-cors>=6.0.0
 
-# ============= LLM 相关 =============
-# OpenAI SDK（统一使用 OpenAI 格式调用 LLM）
+# ============= LLM =============
+# OpenAI SDK (every LLM call uses the OpenAI format)
 openai>=1.0.0
 
 # ============= Zep Cloud =============
 zep-cloud==3.13.0
 
-# ============= OASIS 社交媒体模拟 =============
-# OASIS 社交模拟框架
+# ============= OASIS social media simulation =============
+# The OASIS social simulation framework
 camel-oasis==0.2.5
 camel-ai==0.2.78
-# camel-ai 0.2.78 依赖 mcp 1.x 的 FastMCP，mcp 2.x 会导致 import 失败
+# camel-ai 0.2.78 needs FastMCP from mcp 1.x; mcp 2.x makes the import fail
 mcp==1.29.0
 
-# ============= 文件处理 =============
+# ============= File handling =============
 PyMuPDF>=1.24.0
-# 编码检测（支持非UTF-8编码的文本文件）
+# Encoding detection (handles text files that are not UTF-8)
 charset-normalizer>=3.0.0
 chardet>=5.0.0
 
-# ============= 工具库 =============
-# 环境变量加载
+# ============= Utilities =============
+# Environment variable loading
 python-dotenv>=1.0.0
 
-# 数据验证
+# Data validation
 pydantic>=2.0.0

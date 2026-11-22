@@ -1,12 +1,12 @@
 """
-校验交叉编译出来的 MiroFish.exe 是否符合 Windows 桌面程序的要求。
+Verify that a cross-compiled MiroFish.exe meets the Windows desktop program requirements.
 
-在 Linux 上交叉编译 Windows 程序时，最容易犯的错误是：
-  * 子系统错误（GUI 程序被编成控制台程序，双击会弹出黑窗口）
-  * 图标 / 版本信息没有打进资源段
-  * 依赖了非系统 DLL（目标机器上会直接报“找不到 xxx.dll”）
+When cross-compiling a Windows program on Linux, the usual mistakes are:
+  * a wrong subsystem (a GUI program built as a console program pops up a black window on double-click)
+  * the icon / version info never made it into the resources section
+  * a dependency on a non-system DLL (the target machine reports "xxx.dll not found")
 
-用法：
+Usage:
     python desktop/verify_exe.py build/MiroFish.exe
 """
 
@@ -37,22 +37,22 @@ def check(path):
         data = f.read()
 
     if data[:2] != b'MZ':
-        return ['不是有效的 PE 文件']
+        return ['not a valid PE file']
 
     pe_offset = struct.unpack_from('<I', data, 0x3C)[0]
     if data[pe_offset:pe_offset + 4] != b'PE\0\0':
-        return ['PE 头损坏']
+        return ['the PE header is corrupt']
     machine = struct.unpack_from('<H', data, pe_offset + 4)[0]
     if machine != 0x8664:
-        problems.append(f'不是 x64 程序 (machine=0x{machine:04x})')
+        problems.append(f'not an x64 program (machine=0x{machine:04x})')
 
     optional_off = pe_offset + 24
     magic = struct.unpack_from('<H', data, optional_off)[0]
     subsystem = struct.unpack_from('<H', data, optional_off + 68)[0]
     if subsystem != 2:
-        problems.append(f'子系统不是 GUI (subsystem={subsystem})，双击会弹出控制台窗口')
+        problems.append(f'the subsystem is not GUI (subsystem={subsystem}); a console window would pop up on double-click')
 
-    # 节表
+    # Section table
     num_sections = struct.unpack_from('<H', data, pe_offset + 6)[0]
     size_optional = struct.unpack_from('<H', data, pe_offset + 20)[0]
     sections_off = optional_off + size_optional
@@ -70,7 +70,7 @@ def check(path):
                 return raw_ptr + (rva - vaddr)
         return None
 
-    # 数据目录：导入表(1)、资源表(2)
+    # Data directories: the import table (1) and the resource table (2)
     dirs_off = optional_off + (112 if magic == 0x20b else 96)
     import_rva, import_size = struct.unpack_from('<II', data, dirs_off + 8)
     res_rva, res_size = struct.unpack_from('<II', data, dirs_off + 16)
@@ -78,7 +78,7 @@ def check(path):
     dlls = []
     off = rva_to_off(import_rva)
     if off is None:
-        problems.append('没有导入表')
+        problems.append('there is no import table')
     else:
         i = off
         while True:
@@ -94,7 +94,7 @@ def check(path):
             i += 20
         for dll in dlls:
             if dll.lower() not in system_dlls and not dll.lower().startswith('api-ms-win'):
-                problems.append(f'依赖了非系统 DLL: {dll}（目标机器可能找不到）')
+                problems.append(f'depends on a non-system DLL: {dll} (the target machine may not have it)')
 
     ids = set()
     if res_rva and res_size:
@@ -107,32 +107,32 @@ def check(path):
                 continue
             ids.add(name_field)
     else:
-        problems.append('没有资源段（缺少图标 / 版本信息）')
+        problems.append('there is no resource section (the icon / version info is missing)')
 
-    for res, label in ((RESOURCE_ICON, '图标'), (RESOURCE_GROUP_ICON, '图标组'),
-                       (RESOURCE_VERSION, '版本信息'), (RESOURCE_MANIFEST, '清单')):
+    for res, label in ((RESOURCE_ICON, 'icon'), (RESOURCE_GROUP_ICON, 'icon group'),
+                       (RESOURCE_VERSION, 'version info'), (RESOURCE_MANIFEST, 'manifest')):
         if res not in ids:
-            problems.append(f'资源缺失：{label} (id={res})')
+            problems.append(f'missing resource: {label} (id={res})')
 
-    print(f'文件     : {path} ({len(data) / 1024:.0f} KB)')
-    print(f'架构     : x64 (0x{machine:04x})')
-    print(f'子系统   : {"GUI" if subsystem == 2 else subsystem}')
-    print(f'导入 DLL : {", ".join(dlls)}')
-    print(f'资源     : {sorted(ids)}')
+    print(f'File     : {path} ({len(data) / 1024:.0f} KB)')
+    print(f'Arch     : x64 (0x{machine:04x})')
+    print(f'Subsystem: {"GUI" if subsystem == 2 else subsystem}')
+    print(f'Imports  : {", ".join(dlls)}')
+    print(f'Resources: {sorted(ids)}')
     return problems
 
 
 def main():
     if len(sys.argv) < 2:
-        print('用法: python desktop/verify_exe.py <MiroFish.exe>')
+        print('Usage: python desktop/verify_exe.py <MiroFish.exe>')
         return 2
     problems = check(sys.argv[1])
     if problems:
-        print('\n✗ 校验未通过:')
+        print('\nX Verification failed:')
         for p in problems:
             print('  -', p)
         return 1
-    print('\n✓ 校验通过')
+    print('\nOK Verification passed')
     return 0
 
 

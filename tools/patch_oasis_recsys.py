@@ -1,11 +1,11 @@
 """
-让 OASIS 在没有 torch / sentence-transformers / scikit-learn 时也能导入。
+Let OASIS import with no torch / sentence-transformers / scikit-learn installed.
 
-背景：oasis/social_platform/recsys.py 在模块顶层就 import torch、sentence_transformers、
-sklearn，因此即使只想用随机/热度推荐（reddit、random），也必须安装 torch（约 1.2 GB）。
-MiroFish 只有 twitter 平台的个性化推荐真正用到它们。
+Background: oasis/social_platform/recsys.py imports torch, sentence_transformers and
+sklearn at module level, so even random/popularity recommendations (reddit, random) need torch (about 1.2 GB).
+Only the twitter personalized recommendation in MiroFish actually uses them.
 
-本脚本把这些顶层导入改成惰性导入，并在缺少依赖时给出清晰提示。
+This script turns those top-level imports into lazy imports and gives a clear message when a dependency is missing.
 """
 
 import io
@@ -14,19 +14,19 @@ import sys
 
 TARGET_REL = os.path.join('oasis', 'social_platform', 'recsys.py')
 
-# camel-oasis 0.2.5 在 METADATA 里硬性声明了这些依赖，但 MiroFish 的流程并不会用到：
-#   sentence-transformers / torch / scipy / scikit-learn -> 仅 twitter 个性化推荐
-#   cairocffi -> 只在可视化脚本里用
-#   neo4j -> AgentGraph 默认使用 igraph 后端
-# 去掉声明后，pip/uv 就不会再拉取约 1.4 GB 的依赖。
+# camel-oasis 0.2.5 hard-declares these dependencies in METADATA, but the MiroFish flow never uses them:
+#   sentence-transformers / torch / scipy / scikit-learn -> twitter personalized recommendation only
+#   cairocffi -> only used by the visualization scripts
+#   neo4j -> AgentGraph uses the igraph backend by default
+# With the declarations removed, pip/uv no longer pull in about 1.4 GB of dependencies.
 STRIP_DEPS = ('torch', 'transformers', 'sentence-transformers', 'sentence_transformers',
               'scikit-learn', 'scipy', 'cairocffi', 'neo4j',
-              # 开发期依赖，运行不需要
+              # Development-time dependency, not needed at runtime
               'pre-commit', 'pytest', 'pytest-asyncio')
 
 
 def strip_metadata(site_packages):
-    """删除 camel_oasis 的 METADATA 里不必要的 Requires-Dist，返回删除条数。"""
+    """Remove the unnecessary Requires-Dist lines from camel_oasis METADATA; returns how many were removed."""
     import glob
     removed = 0
     for meta in glob.glob(os.path.join(site_packages, 'camel_oasis-*.dist-info', 'METADATA')):
@@ -35,7 +35,7 @@ def strip_metadata(site_packages):
         kept = []
         for line in lines:
             if line.startswith('Requires-Dist:'):
-                # 形如 "sentence-transformers (==3.0.0)" 或 "torch>=2.0 ; extra == 'x'"
+                # Either "sentence-transformers (==3.0.0)" or "torch>=2.0 ; extra == 'x'"
                 name = line.split(':', 1)[1].strip()
                 name = name.split(';')[0].strip()
                 name = name.split('(')[0].strip()
@@ -52,7 +52,7 @@ def strip_metadata(site_packages):
     return removed
 TARGET_REL_POSTS = os.path.join('oasis', 'social_platform', 'process_recsys_posts.py')
 
-# process_recsys_posts.py 的顶层依赖（用于向量生成，仅 twitter 个性化推荐需要）
+# The top-level dependency of process_recsys_posts.py (used to build embeddings; only the twitter personalized recommendation needs it)
 POSTS_HEADER = '''import torch
 from camel.embeddings import OpenAIEmbedding
 from camel.types import EmbeddingModelType
@@ -64,7 +64,7 @@ from camel.types import EmbeddingModelType
 
 
 # ---------------------------------------------------------------------------
-# 轻量模式补丁：torch / transformers 改为按需导入
+# Slim-mode patch: torch / transformers become lazy imports
 # ---------------------------------------------------------------------------
 class _MissingHeavyDeps(RuntimeError):
     pass
@@ -76,7 +76,7 @@ def _require_torch():
         return torch
     except ImportError as exc:
         raise _MissingHeavyDeps(
-            '该推荐算法需要 torch。请安装: pip install torch'
+            'This recommendation algorithm needs torch. Please install: pip install torch'
         ) from exc
 
 
@@ -86,11 +86,11 @@ def _require_transformers():
         return AutoModel, AutoTokenizer
     except ImportError as exc:
         raise _MissingHeavyDeps(
-            '该推荐算法需要 transformers。请安装: pip install transformers'
+            'This recommendation algorithm needs transformers. Please install: pip install transformers'
         ) from exc
 
 
-AutoModel = object   # 仅用于类型注解
+AutoModel = object   # only used for type annotations
 AutoTokenizer = object
 '''
 
@@ -102,8 +102,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 '''
 
 REPLACEMENT = '''# ---------------------------------------------------------------------------
-# 轻量模式补丁：torch / sentence-transformers / scikit-learn 改为按需导入
-# （由 MiroFish 的安装脚本自动应用；只有 twitter 个性化推荐真正需要它们）
+# Slim-mode patch: torch / sentence-transformers / scikit-learn become lazy imports
+# (applied automatically by the MiroFish installer; only the twitter personalized recommendation really needs them)
 # ---------------------------------------------------------------------------
 import numpy as np
 
@@ -118,8 +118,8 @@ def _require_torch():
         return torch
     except ImportError as exc:
         raise _MissingHeavyDeps(
-            'OASIS 的个性化推荐需要 torch。请安装: pip install torch '
-            '(或改用 reddit / random 平台)'
+            'The OASIS personalized recommendation needs torch. Please install: pip install torch '
+            '(or switch to the reddit / random platform)'
         ) from exc
 
 
@@ -129,8 +129,8 @@ def _require_sentence_transformers():
         return SentenceTransformer
     except ImportError as exc:
         raise _MissingHeavyDeps(
-            'OASIS 的个性化推荐需要 sentence-transformers。'
-            '请安装: pip install sentence-transformers'
+            'The OASIS personalized recommendation needs sentence-transformers.'
+            'Please install: pip install sentence-transformers'
         ) from exc
 
 
@@ -141,12 +141,12 @@ def _require_sklearn():
         return TfidfVectorizer, cosine_similarity
     except ImportError as exc:
         raise _MissingHeavyDeps(
-            'OASIS 的个性化推荐需要 scikit-learn。请安装: pip install scikit-learn'
+            'The OASIS personalized recommendation needs scikit-learn. Please install: pip install scikit-learn'
         ) from exc
 
 
 class _LazyModule(object):
-    """以属性访问方式按需导入 torch。"""
+    """Import torch lazily through attribute access."""
 
     def __getattr__(self, name):
         return getattr(_require_torch(), name)
@@ -161,7 +161,7 @@ DEVICE_REPLACEMENT = ('device = _require_torch().device('
 
 
 def patch_file(path):
-    """返回 patched / already / missing-header。"""
+    """Return patched / already / missing-header."""
     with io.open(path, encoding='utf-8') as f:
         source = f.read()
 
@@ -176,11 +176,11 @@ def patch_file(path):
     if HEADER in source:
         source = source.replace(HEADER, REPLACEMENT, 1)
     elif heavy in source:
-        # 顺序为 numpy -> torch -> sentence_transformers -> sklearn
+        # The order is numpy -> torch -> sentence_transformers -> sklearn
         source = source.replace('import numpy as np\n' + heavy,
                                 REPLACEMENT, 1)
     else:
-        # 逐行删除，保留 numpy
+        # Remove them line by line, keeping numpy
         lines = source.splitlines(keepends=True)
         drop_prefixes = ('import torch', 'from sentence_transformers',
                          'from sklearn.feature_extraction.text',
@@ -189,15 +189,15 @@ def patch_file(path):
         if len(kept) == len(lines):
             return 'missing-header'
         source = ''.join(kept)
-        # 在 numpy 之后插入补丁代码
+        # Insert the patch code after numpy
         marker = 'import numpy as np\n'
         if marker not in source:
             return 'missing-header'
         source = source.replace(marker, marker + REPLACEMENT.split('import numpy as np\n', 1)[1], 1)
-    # 只替换模块级那一处（函数内的 device 保留原样）
+    # Replace only the module-level occurrence (the device inside functions is left untouched)
     source = source.replace(
         DEVICE_LINE,
-        '# 设备选择同样延迟（只有个性化推荐需要）\n'
+        '# Device selection is deferred the same way (only the personalized recommendation needs it)\n'
         'device = None',
         1,
     )
@@ -207,10 +207,10 @@ def patch_file(path):
         1,
     )
 
-    # 模块级的 TfidfVectorizer 实例化 + 局部引用改名，避免导入期就需要 sklearn
+    # Defer the module-level TfidfVectorizer instantiation and rename the local reference, so sklearn is not needed at import time
     source = source.replace(
         'tfidf_vectorizer = TfidfVectorizer()',
-        '# TfidfVectorizer 延迟到真正使用（reddit 平台）时再创建\n'
+        '# Defer TfidfVectorizer until it is actually used (the reddit platform)\n'
         'tfidf_vectorizer = None',
     )
     source = source.replace(
@@ -224,7 +224,7 @@ def patch_file(path):
 
 
 def patch_posts_file(path):
-    """处理 process_recsys_posts.py（torch 装饰器 + 顶层 transformers 导入）。"""
+    """Handle process_recsys_posts.py (the torch decorator + the top-level transformers import)."""
     with io.open(path, encoding='utf-8') as f:
         source = f.read()
 
@@ -236,16 +236,16 @@ def patch_posts_file(path):
 
     source = source.replace(POSTS_HEADER, POSTS_REPLACEMENT, 1)
 
-    # @torch.no_grad() 是装饰器，需要在导入期就存在 -> 改为运行期惰性包装
-    # 装饰器会在导入期求值，改为导入期惰性、运行期真实校验
+    # @torch.no_grad() is a decorator, so it must exist at import time -> wrap it into a runtime lazy wrapper
+    # The decorator is evaluated at import time; make it lazy at import time and validate for real at run time
     source = source.replace(
         '@torch.no_grad()\ndef process_batch(',
         '@_lazy_no_grad\ndef process_batch(',
     )
     source = source.replace(
-        'AutoModel = object   # 仅用于类型注解',
+        'AutoModel = object   # only used for type annotations',
         '''def _lazy_no_grad(func):
-    """torch.no_grad() 的惰性版本：真正的依赖检查延迟到函数调用时。"""
+    """The lazy version of torch.no_grad(): the real dependency check is deferred until the function is called."""
     import functools
 
     @functools.wraps(func)
@@ -256,7 +256,7 @@ def patch_posts_file(path):
     return wrapper
 
 
-AutoModel = object   # 仅用于类型注解''')
+AutoModel = object   # only used for type annotations''')
     source = source.replace(
         '    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")',
         '    torch = _require_torch()\n'
@@ -273,9 +273,9 @@ AutoModel = object   # 仅用于类型注解''')
 
 
 def strip_all_metadata(site_packages):
-    """瘦身模式：同时清掉 camel_oasis 与 camel_ai 里不需要的依赖声明。"""
+    """Slim mode: also strip the unnecessary dependency declarations from camel_oasis and camel_ai."""
     total = strip_metadata(site_packages)
-    print(f'[patch_oasis_recsys] 移除 {total} 条不必要的依赖声明（sentence-transformers / torch 等）')
+    print(f'[patch_oasis_recsys] removed {total} unnecessary dependency declarations (sentence-transformers / torch and so on)')
     return total
 
 
@@ -292,7 +292,7 @@ def patch_site_packages(site_packages):
 
 
 def main(argv):
-    # 支持 "目录 --slim" 与 "--slim 目录" 两种顺序
+    # Either "directory --slim" or "--slim directory" works
     args = [a for a in argv[1:] if not a.startswith('--')]
     if args:
         target = args[0]
@@ -304,7 +304,7 @@ def main(argv):
         try:
             import oasis
         except ImportError:
-            print('用法: python patch_oasis_recsys.py <site-packages 目录>')
+            print('Usage: python patch_oasis_recsys.py <site-packages directory>')
             return 2
         target = os.path.dirname(oasis.__file__)
         result, target = patch_site_packages(os.path.dirname(target))
@@ -313,7 +313,7 @@ def main(argv):
 
     slim = '--slim' in sys.argv or '--strip-metadata' in sys.argv
     if slim:
-        # target 可能是 recsys.py，也可能是 site-packages 目录
+        # target may be recsys.py or the site-packages directory
         base = target if os.path.isdir(target) else os.path.dirname(target)
         if os.path.basename(base) == 'social_platform':
             base = os.path.dirname(os.path.dirname(base))

@@ -1,20 +1,20 @@
 """
-MiroFish Desktop —— 桌面版启动器（Windows）
+MiroFish Desktop - the desktop launcher (Windows)
 
-职责：
-  1. 找到用户可写的数据目录（%APPDATA%\\MiroFish 或安装目录旁的 data\\），
-     首次启动时写入默认 .env 模板并生成高熵 SECRET_KEY。
-  2. 启动内嵌的 Flask 后端（仅监听 127.0.0.1，随机空闲端口），
-     同时把前端构建产物作为静态资源挂在同一个端口上，
-     因此桌面端不存在跨域 / 端口写死的问题。
-  3. 用 pywebview（Windows 上是 WebView2 / Edge）打开原生窗口。
-  4. 后端日志与子进程（OASIS 模拟）在退出时统一回收。
+Responsibilities:
+  1. find a user-writable data directory (%APPDATA%\MiroFish, or data\ next to the install directory);
+     on the first run, write the default .env template and generate a high-entropy SECRET_KEY.
+  2. start the embedded Flask backend (listening on 127.0.0.1 only, on a random free port),
+     serving the built frontend as static assets on the same port,
+     so the desktop build has no CORS or hard-coded port problems.
+  3. open the native window with pywebview (WebView2 / Edge on Windows).
+  4. reclaim the backend logs and child processes (OASIS simulations) on exit.
 
-命令行参数：
-  --desktop        隐藏控制台、直接进桌面模式（打包后的 MiroFish.exe 默认行为）
-  --headless       只启动本地服务，不打开窗口（便于排错，输出访问地址）
-  --port N         指定端口（默认自动选择空闲端口）
-  --debug          打开 pywebview 的调试能力
+Command-line arguments:
+  --desktop        hide the console and go straight into desktop mode (the default of the packaged MiroFish.exe)
+  --headless       start the local service only, no window (handy for troubleshooting; prints the URL)
+  --port N         use the given port (a free port is picked automatically by default)
+  --debug          enable the pywebview debugging features
 """
 
 import atexit
@@ -49,55 +49,55 @@ DEFAULT_WIDTH = 1440
 DEFAULT_HEIGHT = 920
 
 ENV_TEMPLATE = """\
-# ===== MiroFish 桌面版配置文件 =====
-# 这个文件保存在你的用户数据目录中，升级软件不会被覆盖。
-# 修改下面的 API Key 后，重启 MiroFish 即可生效。
+# ===== MiroFish desktop configuration file =====
+# This file lives in your user data directory and is never overwritten by an upgrade.
+# Change the API keys below and restart MiroFish for them to take effect.
 
-# ---- LLM 配置（支持任意 OpenAI 兼容接口）----
-# 例如阿里百炼: https://dashscope.aliyuncs.com/compatible-mode/v1  /  qwen-plus
+# ---- LLM configuration (any OpenAI-compatible endpoint)----
+# e.g. Alibaba Bailian: https://dashscope.aliyuncs.com/compatible-mode/v1  /  qwen-plus
 #     OpenAI  : https://api.openai.com/v1                          /  gpt-4o-mini
 #     DeepSeek: https://api.deepseek.com/v1                        /  deepseek-chat
 LLM_API_KEY=
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_MODEL_NAME=qwen-plus
 
-# ---- Zep Cloud 记忆图谱（https://app.getzep.com/）----
+# ---- Zep Cloud memory graph (https://app.getzep.com/)----
 ZEP_API_KEY=
 
-# ---- 可选：加速 LLM ----
+# ---- Optional: boost LLM ----
 # LLM_BOOST_API_KEY=
 # LLM_BOOST_BASE_URL=
 # LLM_BOOST_MODEL_NAME=
 
-# ---- 可选：模拟参数 ----
+# ---- Optional: simulation parameters ----
 # OASIS_DEFAULT_MAX_ROUNDS=10
 """
 
 
 # --------------------------------------------------------------------------- #
-# 路径
+# Paths
 # --------------------------------------------------------------------------- #
 def is_frozen() -> bool:
     return bool(getattr(sys, 'frozen', False))
 
 
 def app_root() -> str:
-    """打包后为 exe 所在目录；源码运行时为仓库根目录。"""
+    """The directory holding the exe after packaging; the repository root when run from source."""
     if is_frozen():
         return os.path.dirname(os.path.abspath(sys.executable))
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def resource_root() -> str:
-    """只读资源目录（前端构建产物、内置 Python 运行时）。"""
+    """The read-only asset directory (the built frontend, the bundled Python runtime)."""
     if is_frozen():
-        # PyInstaller onedir: 资源在 _internal 目录
+        # PyInstaller onedir: the assets live in the _internal directory
         return getattr(sys, '_MEIPASS', app_root())
     return app_root()
 
 
 def data_root() -> str:
-    """可写数据目录。"""
+    """The writable data directory."""
     if os.environ.get('MIROFISH_HOME'):
         return os.path.abspath(os.environ['MIROFISH_HOME'])
 
@@ -109,7 +109,7 @@ def data_root() -> str:
 
 
 def ensure_data_dir() -> str:
-    """准备数据目录与 .env，返回数据目录。"""
+    """Prepare the data directory and .env, then return the data directory."""
     root = data_root()
     os.makedirs(root, exist_ok=True)
     os.makedirs(os.path.join(root, 'uploads'), exist_ok=True)
@@ -129,7 +129,7 @@ def env_file() -> str:
 
 
 # --------------------------------------------------------------------------- #
-# 后端
+# Backend
 # --------------------------------------------------------------------------- #
 def backend_source_dir() -> str:
     root = resource_root()
@@ -140,7 +140,7 @@ def backend_source_dir() -> str:
                       os.path.join(root, 'resources', 'backend')):
         if os.path.isdir(candidate):
             return candidate
-    raise RuntimeError('找不到后端代码目录（backend/），安装包可能不完整。')
+    raise RuntimeError('Cannot find the backend code directory (backend/); the package may be incomplete.')
 
 
 def frontend_dist_dir() -> str:
@@ -170,7 +170,7 @@ def free_port(preferred: int = 0) -> int:
 
 
 def prepare_runtime_env(port: int) -> None:
-    """桌面模式下的环境变量与 sys.path 设置。"""
+    """The environment variables and sys.path setup used in desktop mode."""
     root = ensure_data_dir()
 
     os.environ['MIROFISH_DATA_DIR'] = os.path.join(root, 'uploads')
@@ -179,7 +179,7 @@ def prepare_runtime_env(port: int) -> None:
     os.environ['MIROFISH_VERSION'] = VERSION
     os.environ['FLASK_HOST'] = '127.0.0.1'
     os.environ['FLASK_PORT'] = str(port)
-    # 桌面版关闭 Flask debug（否则会拉起 reloader 子进程）
+    # Disable Flask debug in the desktop build (otherwise the reloader child process is spawned)
     os.environ['FLASK_DEBUG'] = 'false'
     os.environ.setdefault('PYTHONUTF8', '1')
     os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
@@ -198,7 +198,7 @@ def log_file() -> str:
 
 
 class _Tee(object):
-    """把输出同时写到控制台与日志文件（打包后没有控制台也不会出错）。"""
+    """Write the output to the console and the log file at once (harmless with no console after packaging)."""
 
     def __init__(self, stream, fileobj):
         self.stream = stream
@@ -235,7 +235,7 @@ def start_logging() -> None:
 
 
 def start_backend(port: int):
-    """创建 Flask 应用并挂载前端静态文件。返回 app。"""
+    """Create the Flask app and serve the frontend static files. Returns app."""
     from flask import Flask, send_from_directory
 
     from app import create_app
@@ -249,20 +249,20 @@ def start_backend(port: int):
         @app.route('/', defaults={'path': ''})
         @app.route('/<path:path>')
         def serve_spa(path):
-            # API 与健康检查交给 Flask 自己的路由处理
+            # The API and the health check are handled by Flask's own routes
             if path.startswith(('api/', 'health')):
                 return {'success': False, 'error': 'Not Found'}, 404
             candidate = os.path.join(dist_abs, path)
             if path and os.path.isfile(candidate):
                 return send_from_directory(dist_abs, path)
-            # vue-router history 模式：其余路径回落到 index.html
+            # vue-router history mode: every other path falls back to index.html
             return send_from_directory(dist_abs, 'index.html')
 
     return app
 
 
 def install_shutdown_hooks() -> None:
-    """任何退出路径都尽量回收模拟子进程（Windows 下信号支持有限，用 atexit 兜底）。"""
+    """Reclaim the simulation child processes on any exit path (signal support is limited on Windows, so atexit is the safety net)."""
     def _cleanup(*_args):
         try:
             from app.services.simulation_runner import SimulationRunner
@@ -286,7 +286,7 @@ def install_shutdown_hooks() -> None:
 
 
 def run_server(app, port: int) -> None:
-    """使用 waitress 启动（Windows 上比 werkzeug 更稳，且不会开 reloader）。"""
+    """Start with waitress (steadier than werkzeug on Windows, and it spawns no reloader)."""
     try:
         from waitress import serve
         serve(app, host='127.0.0.1', port=port, threads=16, channel_timeout=1800,
@@ -310,7 +310,7 @@ def wait_until_ready(port: int, timeout: float = 90.0) -> bool:
 
 
 def icon_path() -> str:
-    """返回窗口图标路径（可选，缺失时退回无图标）。"""
+    """Return the window icon path (optional; falls back to no icon when missing)."""
     root = resource_root()
     here = os.path.dirname(os.path.abspath(__file__))
     for candidate in (os.path.join(root, 'app', 'icon.png'),
@@ -319,7 +319,7 @@ def icon_path() -> str:
         if os.path.exists(candidate):
             return candidate
 
-    # 兜底：用纯标准库生成一个
+    # Fallback: generate one with the standard library alone
     try:
         from icon import png_bytes
         path = os.path.join(data_root(), 'mirofish-icon.png')
@@ -332,14 +332,14 @@ def icon_path() -> str:
 
 
 # --------------------------------------------------------------------------- #
-# 主流程
+# Main flow
 # --------------------------------------------------------------------------- #
 def run(headless: bool = False, port: int = 0, debug: bool = False) -> int:
     start_logging()
     port = free_port(port)
 
-    print(f'[MiroFish] 版本 {VERSION}')
-    print(f'[MiroFish] 数据目录: {data_root()}')
+    print(f'[MiroFish] version {VERSION}')
+    print(f'[MiroFish] data directory: {data_root()}')
 
     prepare_runtime_env(port)
     install_shutdown_hooks()
@@ -351,10 +351,10 @@ def run(headless: bool = False, port: int = 0, debug: bool = False) -> int:
 
     url = f'http://127.0.0.1:{port}/'
     ready = wait_until_ready(port)
-    print(f'[MiroFish] 本地服务 {"已就绪" if ready else "启动超时"}: {url}')
+    print(f'[MiroFish] local service {"ready" if ready else "startup timed out"}: {url}')
 
     if headless:
-        print('[MiroFish] headless 模式，按 Ctrl+C 退出')
+        print('[MiroFish] headless mode, press Ctrl+C to exit')
         try:
             while True:
                 time.sleep(1)
@@ -362,13 +362,13 @@ def run(headless: bool = False, port: int = 0, debug: bool = False) -> int:
             return 0
 
     def on_closed():
-        print('[MiroFish] 窗口已关闭，正在退出...')
+        print('[MiroFish] the window was closed, exiting...')
         os._exit(0)
 
     import webview
 
     window = webview.create_window(
-        f'{APP_NAME} — 群体智能预测引擎',
+        f'{APP_NAME} - swarm intelligence prediction engine',
         url,
         width=DEFAULT_WIDTH,
         height=DEFAULT_HEIGHT,
@@ -398,7 +398,7 @@ def main(argv=None) -> int:
                 pass
 
     if '--browser' in argv:
-        # 用系统默认浏览器打开（WebView2 不可用时的兜底方案）
+        # Open the system default browser (the fallback when WebView2 is unavailable)
         import webbrowser as _wb
         port = free_port(port)
         prepare_runtime_env(port)
@@ -406,7 +406,7 @@ def main(argv=None) -> int:
         threading.Thread(target=run_server, args=(app, port), daemon=True).start()
         wait_until_ready(port)
         _wb.open(f'http://127.0.0.1:{port}/')
-        print('[MiroFish] 已在浏览器中打开，关闭此窗口即退出服务')
+        print('[MiroFish] opened in the browser; close this window to stop the service')
         try:
             while True:
                 time.sleep(1)
@@ -423,7 +423,7 @@ def main(argv=None) -> int:
                 import ctypes
                 ctypes.windll.user32.MessageBoxW(
                     None,
-                    'MiroFish 启动失败。\n\n详细信息见日志:\n' + log_file(),
+                    'MiroFish failed to start.\n\nSee the log for details:\n' + log_file(),
                     'MiroFish', 0x10)
             except Exception:
                 pass

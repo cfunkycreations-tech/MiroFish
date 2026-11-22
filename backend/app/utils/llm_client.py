@@ -1,6 +1,6 @@
 """
-LLM客户端封装
-统一使用OpenAI格式调用
+LLM client wrapper
+Uses the OpenAI format throughout
 """
 
 import json
@@ -16,7 +16,7 @@ logger = logging.getLogger('mirofish.llm')
 
 
 class LLMClient:
-    """LLM客户端"""
+    """The LLM client"""
     
     # Retry configuration for rate limit errors
     # Gemini free tier can impose 10-40s delays, so use aggressive backoff
@@ -34,7 +34,7 @@ class LLMClient:
         self.model = model or Config.LLM_MODEL_NAME
         
         if not self.api_key:
-            raise ValueError("LLM_API_KEY 未配置")
+            raise ValueError("LLM_API_KEY is not configured")
         
         self.client = OpenAI(
             api_key=self.api_key,
@@ -78,16 +78,16 @@ class LLMClient:
         response_format: Optional[Dict] = None
     ) -> str:
         """
-        发送聊天请求
+        Send a chat request
         
         Args:
-            messages: 消息列表
-            temperature: 温度参数
-            max_tokens: 最大token数
-            response_format: 响应格式（如JSON模式）
+            messages: the message list
+            temperature: the temperature
+            max_tokens: the maximum number of tokens
+            response_format: the response format (such as JSON mode)
             
         Returns:
-            模型响应文本
+            the model response text
         """
         kwargs = {
             "model": self.model,
@@ -115,7 +115,7 @@ class LLMClient:
                 raise
         
         content = response.choices[0].message.content
-        # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
+        # Some models (such as MiniMax M2.5) put reasoning inside <think> in the content, which must be removed
         content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
         return content
     
@@ -126,15 +126,15 @@ class LLMClient:
         max_tokens: int = 4096
     ) -> Dict[str, Any]:
         """
-        发送聊天请求并返回JSON
+        Send a chat request and return JSON
         
         Args:
-            messages: 消息列表
-            temperature: 温度参数
-            max_tokens: 最大token数
+            messages: the message list
+            temperature: the temperature
+            max_tokens: the maximum number of tokens
             
         Returns:
-            解析后的JSON对象
+            the parsed JSON object
         """
         response = self.chat(
             messages=messages,
@@ -142,7 +142,7 @@ class LLMClient:
             max_tokens=max_tokens,
             response_format={"type": "json_object"}
         )
-        # 清理markdown代码块标记
+        # Strip the markdown code fence markers
         cleaned_response = response.strip()
         cleaned_response = re.sub(r'^```(?:json)?\s*\n?', '', cleaned_response, flags=re.IGNORECASE)
         cleaned_response = re.sub(r'\n?```\s*$', '', cleaned_response)
@@ -152,5 +152,5 @@ class LLMClient:
             return json.loads(cleaned_response)
         except json.JSONDecodeError:
             logger.error(f"LLM returned invalid JSON: {cleaned_response[:500]}...")
-            raise ValueError(f"LLM返回的JSON格式无效: {cleaned_response[:200]}")
+            raise ValueError(f"the LLM returned invalid JSON: {cleaned_response[:200]}")
 

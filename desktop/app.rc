@@ -13,7 +13,7 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName",      "MiroFish"
-            VALUE "FileDescription",  "MiroFish - 群体智能预测引擎"
+            VALUE "FileDescription",  "MiroFish - Swarm Intelligence Prediction Engine"
             VALUE "FileVersion",      "0.1.0.0"
             VALUE "InternalName",     "MiroFish"
             VALUE "LegalCopyright",   "AGPL-3.0"
@@ -28,5 +28,5 @@ BEGIN
     END
 END
 
-/* 让 Windows 以 UTF-8 处理程序清单里的字符串 */
+/* Let Windows treat the strings in the manifest as UTF-8 */
 1 24 "app.manifest"

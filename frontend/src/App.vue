@@ -1,9 +1,9 @@
 <template>
   <router-view />
-  <!-- 桌面版：在任何页面都能快速进入配置页 -->
-  <router-link v-if="showDesktopBar" to="/settings" class="desktop-settings-fab" title="配置 API Key">
+  <!-- Desktop edition: quick access to the settings page from anywhere -->
+  <router-link v-if="showDesktopBar" to="/settings" class="desktop-settings-fab" title="Configure API keys">
     <span class="dot" :class="{ ready: configured }"></span>
-    {{ configured ? '配置' : '未配置 Key' }}
+    {{ configured ? 'Settings' : 'Keys not set' }}
   </router-link>
 </template>
 
@@ -25,20 +25,20 @@ onMounted(async () => {
     desktop.value = !!data.desktop
     configured.value = !!data.configured
     showDesktopBar.value = desktop.value && route.path !== '/settings'
-    // 首次使用且尚未配置：直接引导到配置页
+    // First run and not configured yet: go straight to the settings page
     if (desktop.value && !configured.value && route.path !== '/settings') {
       router.push('/settings')
       return
     }
   } catch (err) {
-    // 非桌面版（例如源码部署）时该接口不存在，忽略
+    // The endpoint does not exist outside the desktop edition (e.g. a source checkout), so ignore it
     desktop.value = false
   }
 })
 </script>
 
 <style>
-/* 全局样式重置 */
+/* Global style reset */
 * {
   margin: 0;
   padding: 0;
@@ -53,7 +53,7 @@ onMounted(async () => {
   background-color: #ffffff;
 }
 
-/* 滚动条样式 */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -71,12 +71,12 @@ onMounted(async () => {
   background: #333333;
 }
 
-/* 全局按钮样式 */
+/* Global button styling */
 button {
   font-family: inherit;
 }
 
-/* 桌面版右下角配置入口 */
+/* Settings entry point in the bottom-right corner of the desktop edition */
 .desktop-settings-fab {
   position: fixed;
   right: 18px;

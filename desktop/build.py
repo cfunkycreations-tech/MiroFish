@@ -1,31 +1,31 @@
 """
-MiroFish 桌面版（Windows x64）打包脚本
+MiroFish desktop (Windows x64) packaging script
 
-支持两种产物：
+Produces two kinds of build:
 
-  --mode offline   完整离线版：内置 Python 运行时 + 全部依赖，解压即用（约 1 GB 未压缩）
-  --mode setup     在线安装版：只有启动器 + 源码 + Setup.bat，首次运行自动下载依赖（约 1-2 MB）
+  --mode offline   the fully offline build: bundles the Python runtime and every dependency, ready to run after extraction (about 1 GB unpacked)
+  --mode setup     the online installer: launcher + sources + Setup.bat only; downloads the dependencies on first run (about 1-2 MB)
 
-产物结构（两种模式共用同一套目录约定）：
+Build layout (both modes share the same directory conventions):
 
     MiroFish-0.1.0-windows-x64/
-      MiroFish.exe            双击启动（无控制台）
-      MiroFish-Console.bat    排错：带控制台 + 日志
-      Setup.bat               在线版必用：初始化 Python 运行时
+      MiroFish.exe            double-click to start (no console)
+      MiroFish-Console.bat    troubleshooting: console window + logs
+      Setup.bat               required by the online build: initializes the Python runtime
       README.txt / LICENSE / .env.example
       app/
-        app.py                桌面启动器（Flask + pywebview）
+        app.py                 the desktop launcher (Flask + pywebview)
         icon.py
-        backend/              后端源码（含 requirements-desktop.txt）
-        frontend_dist/        前端构建产物
-      runtime/python/         [仅 offline] 内置 Python 与依赖
-      runtime/venv/           [在线版首次运行后生成]
+        backend/               the backend sources (with requirements-desktop.txt)
+        frontend_dist/         the built frontend
+      runtime/python/         [offline only] bundled Python and dependencies
+      runtime/venv/           [created on the first run of the online build]
 
-用法：
-    # 1) 准备素材（Windows 依赖、embeddable Python、MiroFish.exe）
+Usage:
+    # 1) fetch the assets (Windows dependencies, embeddable Python, MiroFish.exe)
     python desktop/fetch_sources.py --build-dir build
 
-    # 2) 打包（先构建前端）
+    # 2) package it (build the frontend first)
     cd frontend && npm ci && npm run build && cd ..
     python desktop/build.py --mode offline --out dist
     python desktop/build.py --mode setup   --out dist
@@ -75,7 +75,7 @@ def assemble_app(stage):
         src = os.path.join(DESKTOP_DIR, name)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(app_dir, name))
-    # 应用图标（窗口图标 / 任务栏图标）
+    # The app icon (window icon / taskbar icon)
     for name in ('icon.png', 'icon.ico'):
         src = os.path.join(DESKTOP_DIR, name)
         if os.path.exists(src):
@@ -84,7 +84,7 @@ def assemble_app(stage):
 
 def assemble_backend(stage):
     dst = os.path.join(stage, 'app', 'backend')
-    log(f'复制后端源码 -> {dst}')
+    log(f'Copying the backend sources -> {dst}')
 
     def _ignore(directory, names):
         out = []
@@ -101,9 +101,9 @@ def assemble_backend(stage):
 def assemble_frontend(stage):
     src = os.path.join(REPO_ROOT, 'frontend', 'dist')
     if not os.path.isdir(src):
-        raise SystemExit('frontend/dist 不存在，请先运行: cd frontend && npm ci && npm run build')
+        raise SystemExit('frontend/dist does not exist; run cd frontend && npm ci && npm run build first')
     dst = os.path.join(stage, 'app', 'frontend_dist')
-    log(f'复制前端产物 -> {dst}')
+    log(f'Copying the built frontend -> {dst}')
     copy_tree(src, dst)
 
 
@@ -113,7 +113,7 @@ def write_requirements(stage):
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(stage, 'app', 'backend', name))
 
-    # 轻量模式补丁脚本（Setup.bat 在安装完成后调用）
+    # The slim-mode patch script (Setup.bat calls it once the install finishes)
     tools_src = os.path.join(REPO_ROOT, 'tools')
     dst_tools = os.path.join(stage, 'tools')
     os.makedirs(dst_tools, exist_ok=True)
@@ -124,16 +124,16 @@ def write_requirements(stage):
 
 def populate_runtime(stage, wheels_dir, embed_dir):
     py_dir = os.path.join(stage, 'runtime', 'python')
-    # 允许传入上一级目录（内部还有一层 cp3xx/）
+    # A parent directory may be passed in (with a cp3xx/ level inside)
     if not os.path.exists(os.path.join(embed_dir, 'python.exe')):
         nested = [d for d in os.listdir(embed_dir)
                   if os.path.isfile(os.path.join(embed_dir, d, 'python.exe'))]
         if nested:
             embed_dir = os.path.join(embed_dir, nested[0])
         else:
-            raise SystemExit(f'--embed 目录里没有 python.exe: {embed_dir}')
+            raise SystemExit(f'no python.exe inside the --embed directory: {embed_dir}')
 
-    log(f'复制 Python 运行时 -> {py_dir}')
+    log(f'Copying the Python runtime -> {py_dir}')
     copy_tree(embed_dir, py_dir)
 
     for name in os.listdir(py_dir):
@@ -145,29 +145,29 @@ def populate_runtime(stage, wheels_dir, embed_dir):
 
     site_packages = os.path.join(py_dir, 'Lib', 'site-packages')
     os.makedirs(site_packages, exist_ok=True)
-    log(f'复制 Windows 依赖 -> {site_packages}')
+    log(f'Copying the Windows dependencies -> {site_packages}')
     copy_tree(wheels_dir, site_packages,
               ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyi'))
 
 
 def ensure_launcher(exe_path):
-    """若启动器不存在（且本机无法编译），从仓库缓存恢复。"""
+    """Restore the launcher from the repository cache when it is missing (and cannot be compiled here)."""
     if os.path.exists(exe_path):
         return exe_path
     cached = os.path.join(DESKTOP_DIR, 'MiroFish.exe')
     if os.path.exists(cached):
         os.makedirs(os.path.dirname(exe_path), exist_ok=True)
         shutil.copy2(cached, exe_path)
-        log(f'使用仓库内预编译启动器 -> {exe_path}')
+        log(f'Using the prebuilt launcher from the repository -> {exe_path}')
         return exe_path
     raise SystemExit(
-        f'缺少启动器 {exe_path}。\n'
-        '  请在有编译器（或 Windows）的环境执行: python desktop/fetch_sources.py\n'
-        '  或直接使用仓库内预编译的 desktop/MiroFish.exe')
+        f'The launcher {exe_path} is missing.\n'
+        '  Run this on a machine with a compiler (or on Windows): python desktop/fetch_sources.py\n'
+        '  or use the prebuilt desktop/MiroFish.exe from the repository')
 
 
 def copy_tools(stage, tools_dir):
-    """拷贝 uv.exe 等工具（在线安装版用它们安装依赖）。"""
+    """Copy the tools (uv.exe and friends) the online build uses to install the dependencies."""
     if not tools_dir or not os.path.isdir(tools_dir):
         return
     dst = os.path.join(stage, 'tools')
@@ -176,90 +176,90 @@ def copy_tools(stage, tools_dir):
         src = os.path.join(tools_dir, name)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(dst, name))
-    log(f'工具 -> {dst}')
+    log(f'Tools -> {dst}')
 
 
 def write_console_bat(stage):
-    """控制台版启动脚本：先确保环境已初始化，再带日志窗口启动（排错用）。"""
+    """Console launcher script: make sure the environment is initialized, then start with a log window (for troubleshooting)."""
     path = os.path.join(stage, f'{APP_NAME}-Console.bat')
     with open(path, 'w', encoding='utf-8', newline='') as f:
         f.write('@echo off\r\n'
                 'chcp 65001 >nul\r\n'
-                'title MiroFish 控制台（排错用）\r\n'
+                'title MiroFish Console (troubleshooting)\r\n'
                 'cd /d "%~dp0"\r\n'
                 'echo ============================================================\r\n'
-                'echo  MiroFish 控制台模式：程序窗口会打开，同时这个黑窗口显示日志\r\n'
+                'echo  MiroFish console mode: the app window opens and this window shows the logs\r\n'
                 'echo ============================================================\r\n'
                 'echo.\r\n'
                 'if not exist "runtime\\venv\\Scripts\\python.exe" (\r\n'
                 '    if not exist "runtime\\python\\python.exe" (\r\n'
-                '        echo [初始化] 还没有安装运行环境，先执行 Setup.bat ...\r\n'
+                '        echo [Setup] No runtime installed yet, running Setup.bat first ...\r\n'
                 '        echo.\r\n'
                 '        call "%~dp0Setup.bat" --no-pause\r\n'
                 '        if errorlevel 1 (\r\n'
                 '            echo.\r\n'
-                '            echo [X] 初始化失败，请把上面的报错信息截图反馈。\r\n'
+                '            echo [X] Setup failed; please screenshot the error above and report it.\r\n'
                 '            pause\r\n'
                 '            exit /b 1\r\n'
                 '        )\r\n'
                 '    )\r\n'
                 ')\r\n'
-                'echo 正在启动 MiroFish（关闭程序窗口即退出）...\r\n'
+                'echo Starting MiroFish (close the app window to exit)...\r\n'
                 'echo.\r\n'
                 f'"{APP_NAME}.exe" --console\r\n'
                 'echo.\r\n'
-                'echo [退出] 程序已结束。\r\n'
+                'echo [Exit] The app has finished.\r\n'
                 'pause\r\n')
 
 
 def write_readme(stage, mode):
     offline = mode == 'offline'
-    extra = ('本安装包已内置 Python 运行时与全部依赖，无需联网、无需安装 Python。\n'
+    extra = ('This package bundles the Python runtime and every dependency; no internet and no Python install needed.\n'
              if offline else
-             '本安装包为在线安装版：首次双击 MiroFish.exe 会提示自动下载运行环境\n'
-             '（约 500 MB - 1 GB），完成后即可离线使用。也可手动双击 Setup.bat。\n')
-    text = f"""MiroFish {VERSION} · Windows x64 桌面版
+             'This is the online installer: the first launch of MiroFish.exe offers to download the runtime\n'
+             '(about 500 MB - 1 GB), after which it works offline. You can also run Setup.bat by hand.\n')
+    text = f"""MiroFish {VERSION} - Windows x64 desktop build
 =================================================
 
-一、启动
+1. Starting
 {extra}
-    双击 MiroFish.exe 即可。数据与配置保存在：
+    Double-click MiroFish.exe. Data and configuration live in:
         %APPDATA%\\MiroFish\\
-            .env              配置文件（LLM / Zep 的 API Key）
-            uploads\\          上传文档、图谱、模拟与报告
-            logs\\desktop.log  运行日志
-    升级软件不会覆盖你的配置与数据。
+            .env              the configuration file (LLM / Zep API keys)
+            uploads\\           uploaded documents, graphs, simulations and reports
+            logs\\desktop.log  the run log
+    Upgrading the app never overwrites your configuration or data.
 
-二、首次使用必须填写 API Key
-    1. 用记事本打开 %APPDATA%\\MiroFish\\.env
-    2. 填写：
-           LLM_API_KEY      大模型 API Key（任意 OpenAI 兼容接口）
-           LLM_BASE_URL     接口地址，如 https://dashscope.aliyuncs.com/compatible-mode/v1
-           LLM_MODEL_NAME   模型名，如 qwen-plus
-           ZEP_API_KEY      Zep Cloud 记忆图谱 Key（https://app.getzep.com/ 有免费额度）
-    3. 保存后重启 MiroFish.exe
+2. API keys are required on first use
+    1. Open %APPDATA%\\MiroFish\\.env in Notepad
+    2. Fill in:
+           LLM_API_KEY      the LLM API key (any OpenAI-compatible endpoint)
+           LLM_BASE_URL     the endpoint address, e.g. https://dashscope.aliyuncs.com/compatible-mode/v1
+           LLM_MODEL_NAME   the model name, e.g. qwen-plus
+           ZEP_API_KEY      the Zep Cloud memory graph key (free tier at https://app.getzep.com/)
+    3. Save the file and restart MiroFish.exe
 
-三、磁盘空间不够？
-    安装需要约 3 GB 峰值空间（完成后约 1.1 GB）。如果空间紧张：
-      * 双击 Setup-Slim.bat（或运行 Setup.bat --slim）：不安装 torch，
-        只需约 1.5 GB 峰值、完成后约 0.4 GB；
-        twitter 平台的“个性化推荐”会退化为随机/热度推荐，其余功能不变。
-      * 所有缓存都在安装目录的 runtime\.cache，不会占用 C 盘。
+3. Not enough disk space?
+    The install needs about 3 GB at peak (about 1.1 GB once finished). If space is tight:
+      * double-click Setup-Slim.bat (or run Setup.bat --slim): no torch is installed,
+        which needs about 1.5 GB at peak and about 0.4 GB once finished;
+        on the twitter platform "personalized recommendations" degrade to random/popularity ranking, everything else is unchanged.
+      * every cache stays in runtime\\.cache inside the install directory, so the C: drive is untouched.
 
-四、出问题时
-    * 双击 MiroFish-Console.bat：保留控制台窗口，直接看到报错。
-    * 日志：%APPDATA%\\MiroFish\\logs\\desktop.log
-    * 在线安装版下载中断：重新双击 MiroFish.exe 或 Setup.bat。
-    * 窗口空白：需要 Edge WebView2（Win10/11 一般自带），
-      可从 https://developer.microsoft.com/microsoft-edge/webview2/ 安装；
-      临时可用  MiroFish.exe --browser  在默认浏览器中使用。
+4. When something goes wrong
+    * Double-click MiroFish-Console.bat: it keeps a console window open so the error is visible.
+    * Logs: %APPDATA%\\MiroFish\\logs\\desktop.log
+    * The online download was interrupted: double-click MiroFish.exe or Setup.bat again.
+    * A blank window: Edge WebView2 is required (usually included with Win10/11);
+      install it from https://developer.microsoft.com/microsoft-edge/webview2/;
+      as a stopgap run  MiroFish.exe --browser  to use your default browser.
 
-五、网络与安全
-    后端仅监听 127.0.0.1 的随机空闲端口，不对外开放。
-    模拟运行时会调用你在 .env 中配置的 LLM / Zep 云服务。
+5. Networking and security
+    The backend only listens on a random free 127.0.0.1 port and is never exposed.
+    While a simulation runs, it calls the LLM / Zep cloud services you configured in .env.
 
-六、许可
-    AGPL-3.0，详见 LICENSE。
+6. License
+    AGPL-3.0, see LICENSE.
 """
     with open(os.path.join(stage, 'README.txt'), 'w', encoding='utf-8', newline='\r\n') as f:
         f.write(text)
@@ -270,27 +270,27 @@ def write_readme(stage, mode):
 
 
 def make_zip(stage, out_dir, name):
-    """压缩安装包。
+    """Zip the installer.
 
-    优先调用系统 zip（多线程 + 更快），没有时退回 Python 的 zipfile。
+    Prefers the system zip (multi-threaded and faster), falling back to Python zipfile.
     """
     zip_path = os.path.join(out_dir, name + '.zip')
     if os.path.exists(zip_path):
         os.remove(zip_path)
-    log(f'压缩 -> {zip_path}')
+    log(f'Compressing -> {zip_path}')
 
     if shutil.which('zip'):
         parent = os.path.dirname(os.path.abspath(stage))
         try:
             subprocess.check_call(['zip', '-r', '-q', '-6', os.path.abspath(zip_path), name], cwd=parent)
         except subprocess.CalledProcessError as exc:
-            log(f'系统 zip 失败（{exc}），改用 Python zipfile')
+            log(f'The system zip failed ({exc}), switching to Python zipfile')
             if os.path.exists(zip_path):
                 os.remove(zip_path)
         else:
             count = sum(len(files) for _, _, files in os.walk(stage))
             size = os.path.getsize(zip_path) / 1024 / 1024
-            log(f'完成：{zip_path}（{count} 个文件，{size:.0f} MB）')
+            log(f'Done: {zip_path} ({count} files, {size:.0f} MB)')
             return zip_path
 
     count = 0
@@ -302,20 +302,20 @@ def make_zip(stage, out_dir, name):
                 count += 1
 
     size = os.path.getsize(zip_path) / 1024 / 1024
-    log(f'完成：{zip_path}（{count} 个文件，{size:.0f} MB）')
+    log(f'Done: {zip_path} ({count} files, {size:.0f} MB)')
     return zip_path
 
 
 def main():
-    ap = argparse.ArgumentParser(description='打包 MiroFish Windows 桌面版')
+    ap = argparse.ArgumentParser(description='Package the MiroFish Windows desktop build')
     ap.add_argument('--mode', choices=['offline', 'setup'], default='setup')
-    ap.add_argument('--wheels', default='', help='Windows site-packages 目录（offline 模式必填）')
-    ap.add_argument('--embed', default='', help='embeddable Python 目录（offline 模式必填）')
+    ap.add_argument('--wheels', default='', help='the Windows site-packages directory (required in offline mode)')
+    ap.add_argument('--embed', default='', help='the embeddable Python directory (required in offline mode)')
     ap.add_argument('--exe', default=os.path.join(REPO_ROOT, 'build', 'MiroFish.exe'))
     ap.add_argument('--relaunch', action='store_true',
-                    help='打包后立即用新图标重新编译并替换 MiroFish.exe（需要 zig）')
+                    help='recompile and replace MiroFish.exe with the new icon right after packaging (needs zig)')
     ap.add_argument('--tools', default=os.path.join(REPO_ROOT, 'build', 'tools'),
-                    help='uv.exe 所在目录（可选）')
+                    help='the directory holding uv.exe (optional)')
     ap.add_argument('--out', default=os.path.join(REPO_ROOT, 'dist'))
     ap.add_argument('--zip', action='store_true')
     args = ap.parse_args()
@@ -329,7 +329,7 @@ def main():
     rmtree(stage)
     os.makedirs(stage, exist_ok=True)
 
-    log(f'模式: {args.mode} -> {stage}')
+    log(f'Mode: {args.mode} -> {stage}')
     assemble_app(stage)
     assemble_backend(stage)
     assemble_frontend(stage)
@@ -343,24 +343,24 @@ def main():
 
     if args.mode == 'offline':
         if not (args.wheels and args.embed):
-            raise SystemExit('offline 模式需要 --wheels 与 --embed')
+            raise SystemExit('offline mode needs --wheels and --embed')
         populate_runtime(stage, args.wheels, args.embed)
 
     total = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(stage) for f in fs)
-    log(f'未压缩体积: {total / 1024 / 1024:.1f} MB')
+    log(f'Uncompressed size: {total / 1024 / 1024:.1f} MB')
 
-    # 用安装包内的 icon.ico 重新编译启动器，保证 exe 图标与窗口图标一致
+    # Recompile the launcher with icon.ico from the installer so the exe icon matches the window icon
     try:
         sys.path.insert(0, DESKTOP_DIR)
         from fetch_sources import compile_launcher
         compile_launcher(os.path.dirname(args.exe))
         shutil.copy2(os.path.join(os.path.dirname(args.exe), 'MiroFish.exe'),
                      os.path.join(stage, f'{APP_NAME}.exe'))
-        log('已用最新图标重新编译 MiroFish.exe')
+        log('Recompiled MiroFish.exe with the latest icon')
     except SystemExit as exc:
-        log(f'跳过重新编译启动器：{exc}')
+        log(f'Skipped recompiling the launcher: {exc}')
     except Exception as exc:  # noqa: BLE001
-        log(f'跳过重新编译启动器：{exc}')
+        log(f'Skipped recompiling the launcher: {exc}')
 
     if args.zip:
         make_zip(stage, args.out, name)

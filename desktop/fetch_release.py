@@ -1,12 +1,12 @@
 """
-从 GitHub 直接取回桌面版安装包（不需要 git、不需要 GitHub CLI）
+Fetch the desktop installers straight from GitHub (no git and no GitHub CLI needed)
 
-用法：
-    python desktop/fetch_release.py                 # 下载到 ./downloads
-    python desktop/fetch_release.py -o ~/Desktop    # 指定目录
+Usage:
+    python desktop/fetch_release.py                 # download into ./downloads
+    python desktop/fetch_release.py -o ~/Desktop    # choose the directory
 
-原理：调用 GitHub 的公开 Contents API，并直接取 raw 内容；
-      下载完成后自动校验 SHA-256。
+How it works: calls the public GitHub Contents API and reads the raw content directly;
+      the SHA-256 is verified automatically once the download finishes.
 """
 
 import argparse
@@ -40,8 +40,8 @@ def download(path, out_dir):
     expected_size = meta['size']
 
     print(f'[fetch] {name}  ({expected_size / 1024 / 1024:.1f} MB)')
-    # 直接走 API 的 raw 内容（download_url 指向 raw.githubusercontent.com，
-    # 部分网络环境对该域名支持不佳）
+    # Use the raw content from the API directly (download_url points at raw.githubusercontent.com,
+    # which some networks handle poorly)
     url = f'https://api.github.com/repos/{REPO}/contents/{path}?ref={BRANCH}'
     headers = {'User-Agent': 'MiroFish-Fetch', 'Accept': 'application/vnd.github.raw'}
 
@@ -61,10 +61,10 @@ def download(path, out_dir):
     print()
 
     if written != expected_size:
-        print(f'[fetch] ! 大小不一致：期望 {expected_size}，实际 {written}')
+        print(f'[fetch] ! size mismatch: expected {expected_size}, got {written}')
         return None
     print(f'[fetch]   SHA-256: {digest.hexdigest()}')
-    print(f'[fetch]   已保存: {dest}')
+    print(f'[fetch]   saved: {dest}')
     return dest
 
 
@@ -86,13 +86,13 @@ def main():
             if result:
                 ok.append(result)
         except Exception as exc:  # noqa: BLE001
-            print(f'[fetch] ! 下载失败 {path}: {exc}')
-            print('        可手动打开: '
+            print(f'[fetch] ! download failed {path}: {exc}')
+            print('        You can open it by hand: '
                   f'https://github.com/{REPO}/blob/{BRANCH}/{path}')
 
     if not ok:
         return 1
-    print('\n[fetch] 完成。解压后双击 MiroFish.exe 即可运行。')
+    print('\n[fetch] done. Extract the archive and double-click MiroFish.exe to run it.')
     return 0
 
 

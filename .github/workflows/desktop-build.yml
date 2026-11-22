@@ -1,12 +1,12 @@
 name: Build Windows desktop app
 
-# 在 GitHub 的 windows-latest 上直接构建原生 Windows 桌面版：
-#   * 不需要交叉编译，MiroFish.exe 由 MSVC 编译
-#   * 产物为完整离线包（内置 Python 运行时 + 全部依赖）
+# Build the native Windows desktop app directly on GitHub's windows-latest:
+#   * no cross-compiling; MSVC builds MiroFish.exe
+#   * the artifact is the full offline package (bundled Python runtime + every dependency)
 #
-# 触发方式：
-#   * 推送 tag（v*）时自动构建并上传到 Release
-#   * 手动 workflow_dispatch
+# Triggers:
+#   * pushing a tag (v*) builds it and uploads it to the Release
+#   * manual workflow_dispatch
 
 on:
   push:
@@ -14,11 +14,11 @@ on:
   workflow_dispatch:
     inputs:
       python_version:
-        description: '内置 Python 版本（3.11 / 3.12 / 3.13）'
+        description: 'Bundled Python version (3.11 / 3.12 / 3.13)'
         default: '3.12'
         required: false
       create_release:
-        description: '构建完成后创建/更新 Release（手动触发时）'
+        description: 'Create/update the Release once the build finishes (manual trigger only)'
         type: boolean
         default: true
   release:

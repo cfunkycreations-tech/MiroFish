@@ -1,15 +1,15 @@
 /*
- * MiroFish.exe —— 桌面版启动器 (Windows x64)
+ * MiroFish.exe - the desktop launcher (Windows x64)
  *
- * 职责：
- *   1. 定位 Python 解释器（支持两种安装形态）：
- *        runtime\venv\Scripts\pythonw.exe    <- Setup.bat 首次运行时创建的虚拟环境
- *        runtime\python\pythonw.exe          <- 完整离线版内置的 embeddable Python
- *   2. 首次运行且找不到解释器时，询问并调用 Setup.bat 自动初始化。
- *   3. 以安装目录为工作目录运行 app\app.py，透传命令行参数，等待其退出。
- *   4. --console 时保留控制台窗口，方便查看报错。
+ * Responsibilities:
+ *   1. locate the Python interpreter (two install shapes are supported):
+ *        runtime\venv\Scripts\pythonw.exe    <- the virtual environment created by Setup.bat on the first run
+ *        runtime\python\pythonw.exe          <- the embeddable Python bundled in the offline build
+ *   2. on the first run, when no interpreter is found, ask the user and run Setup.bat to initialize it.
+ *   3. run app\app.py with the install directory as the working directory, forward the command-line arguments and wait for it to exit.
+ *   4. keep the console window with --console, so errors are visible.
  *
- * 交叉编译（Linux，使用 zig）：
+ * Cross-compiling (Linux, with zig):
  *   zig cc -target x86_64-windows-gnu -O2 -municode -mwindows \
  *          -o MiroFish.exe launcher.c app.rc -lole32 -lshell32 -luser32
  */
@@ -70,7 +70,7 @@ static int has_flag(int argc, wchar_t **argv, const wchar_t *flag)
     return 0;
 }
 
-/* 返回 1 表示找到解释器 */
+/* Returns 1 when an interpreter was found */
 static int find_python(const wchar_t *app_dir, int console_mode, wchar_t *out)
 {
     const wchar_t *candidates[] = {
@@ -84,13 +84,13 @@ static int find_python(const wchar_t *app_dir, int console_mode, wchar_t *out)
     for (int i = 0; candidates[i]; ++i) {
         const wchar_t *name = candidates[i];
         if (console_mode) {
-            /* 控制台模式优先 python.exe */
+            /* Console mode prefers python.exe */
             if (wcsstr(name, L"pythonw.exe")) continue;
         }
         _snwprintf(out, PATH_CAP, L"%ls\\%ls", app_dir, name);
         if (file_exists(out)) return 1;
     }
-    /* 兜底：环境变量 */
+    /* Fallback: the environment variable */
     wchar_t env_py[PATH_CAP];
     DWORD n = GetEnvironmentVariableW(L"MIROFISH_PYTHON", env_py, PATH_CAP);
     if (n > 0 && n < PATH_CAP && file_exists(env_py)) {
@@ -107,15 +107,15 @@ static int run_setup(const wchar_t *app_dir)
     if (!file_exists(script)) return 0;
 
     int answer = MessageBoxW(NULL,
-        L"首次运行需要初始化运行环境。\n\n"
-        L"将从网络下载 Python 与依赖（约 500 MB～1 GB，视网络而定），\n"
-        L"之后再启动就不需要联网了。\n\n"
-        L"现在开始初始化吗？",
-        L"MiroFish 首次运行", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON1);
+        L"The runtime has to be initialized on first run.\n\n"
+        L"Python and the dependencies will be downloaded (about 500 MB-1 GB, depending on the network),\n"
+        L"and later launches will not need the network at all.\n\n"
+        L"Initialize now?",
+        L"MiroFish first run", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON1);
     if (answer != IDYES) return 0;
 
     wchar_t cmd[PATH_CAP * 2];
-    /* 传入 --no-pause，避免 Setup.bat 结束后再等一次按键 */
+    /* Pass --no-pause so Setup.bat does not wait for one more keypress at the end */
     _snwprintf(cmd, PATH_CAP * 2, L"cmd.exe /c \"\"%ls\" --no-pause\"", script);
 
     STARTUPINFOW si;
@@ -145,7 +145,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     wchar_t exe_path[PATH_CAP];
     DWORD len = GetModuleFileNameW(NULL, exe_path, PATH_CAP);
     if (len == 0 || len >= PATH_CAP) {
-        show_error(L"无法确定程序所在目录。", NULL);
+        show_error(L"Cannot determine the program directory.", NULL);
         return 2;
     }
     wchar_t app_dir[PATH_CAP];
@@ -161,7 +161,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     if (!find_python(app_dir, console_mode, python)) {
         if (has_flag(argc, argv, L"--no-setup") || !run_setup(app_dir)) {
             if (!find_python(app_dir, console_mode, python)) {
-                /* 初始化失败：把残留的下载文件改名，避免下次因 .part 冲突失败 */
+                /* Setup failed: rename the leftover downloads so a .part collision does not break the next attempt */
                 wchar_t part[PATH_CAP];
                 _snwprintf(part, PATH_CAP, L"%ls\\runtime\\.cache", app_dir);
                 if (file_exists(part)) {
@@ -169,14 +169,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
                     _snwprintf(aside, PATH_CAP, L"%ls.stale", part);
                     MoveFileExW(part, aside, MOVEFILE_REPLACE_EXISTING);
                 }
-                show_error(L"MiroFish 初始化未完成：找不到 Python 运行环境。",
-                           L"常见原因：\n  1) 磁盘空间不足（安装需要约 3 GB 可用空间）\n  2) 网络中断（重新运行会自动续传）\n\n请双击安装目录中的 Setup.bat 重新初始化，或在 MiroFish-Console.bat 里查看详细报错。\n也可以使用完整离线版安装包（无需联网）。");
+                show_error(L"MiroFish setup did not finish: no Python runtime found.",
+                           L"Common reasons:\n  1) not enough disk space (the install needs about 3 GB free)\n  2) the network dropped (running it again resumes automatically)\n\nDouble-click Setup.bat in the install directory to initialize again, or check MiroFish-Console.bat for the detailed error.\nYou can also use the fully offline build (no network needed).");
                 return 3;
             }
         }
         if (!find_python(app_dir, console_mode, python)) {
-            show_error(L"初始化失败：仍然找不到 Python 运行环境。",
-                       L"请查看 Setup.bat 窗口中的报错信息。");
+            show_error(L"Setup failed: the Python runtime is still not found.",
+                       L"Please read the error shown in the Setup.bat window.");
             return 3;
         }
     }
@@ -184,8 +184,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     wchar_t script[PATH_CAP];
     _snwprintf(script, PATH_CAP, L"%ls\\app\\app.py", app_dir);
     if (!file_exists(script)) {
-        show_error(L"MiroFish 安装不完整：找不到 app\\app.py。",
-                   L"请重新解压安装包。");
+        show_error(L"The MiroFish install is incomplete: app\\app.py is missing.",
+                   L"Please extract the installer again.");
         return 4;
     }
 
@@ -199,7 +199,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
 
     if (want_console && GetConsoleWindow() == NULL) {
         AllocConsole();
-        SetConsoleTitleW(L"MiroFish 日志");
+        SetConsoleTitleW(L"MiroFish log");
         FILE *f;
         freopen_s(&f, "CONOUT$", "w", stdout);
         freopen_s(&f, "CONOUT$", "w", stderr);
@@ -215,9 +215,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     if (!CreateProcessW(python, cmd, NULL, NULL, want_console ? TRUE : FALSE,
                         flags, NULL, app_dir, &si, &pi)) {
         wchar_t detail[PATH_CAP * 2];
-        _snwprintf(detail, PATH_CAP * 2, L"CreateProcess 失败 (错误码 %lu)\n%ls",
+        _snwprintf(detail, PATH_CAP * 2, L"CreateProcess failed (error code %lu)\n%ls",
                    GetLastError(), cmd);
-        show_error(L"无法启动 MiroFish 后端。", detail);
+        show_error(L"Cannot start the MiroFish backend.", detail);
         return 5;
     }
 
@@ -230,7 +230,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     LocalFree(argv);
 
     if (want_console) {
-        wprintf(L"\n[launcher] 后端已退出，退出码 %lu。按回车关闭窗口...\n", exit_code);
+        wprintf(L"\n[launcher] the backend exited with code %lu. Press Enter to close the window...\n", exit_code);
         getchar();
     }
     return (int)exit_code;

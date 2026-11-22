@@ -1,11 +1,11 @@
 """
-本地下载服务器：把 dist-builds/ 里的安装包用一个网页暴露出来，方便直接下载。
+Local download server: exposes the installers in dist-builds/ on a web page for easy download.
 
-用法：
+Usage:
     python desktop/serve_builds.py --dir dist-builds --port 8080
 
-浏览器打开 http://<host>:8080/ 即可看到安装包列表并点击下载
-（在 Arena 沙箱中会以 Live Preview 形式呈现）。
+open http://<host>:8080/ in a browser to see the installer list and download one
+(in the Arena sandbox it shows up as a Live Preview).
 """
 
 import argparse
@@ -29,7 +29,7 @@ INDEX_TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>MiroFish 安装包下载</title>
+<title>Download MiroFish installers</title>
 <style>
   :root {{ color-scheme: dark; }}
   * {{ box-sizing: border-box; }}
@@ -77,17 +77,17 @@ INDEX_TEMPLATE = """<!doctype html>
 <div class="wrap">
   <header>
     <div class="logo">🐟</div>
-    <h1>MiroFish 安装包下载</h1>
+    <h1>Download MiroFish installers</h1>
   </header>
-  <p class="sub">Windows x64 桌面版 · 点击右侧按钮即可下载压缩包，解压后双击 <code>MiroFish.exe</code> 运行。</p>
+  <p class="sub">Windows x64 desktop build - click Download, then extract the archive and double-click <code>MiroFish.exe</code>.</p>
   {cards}
   <ol>
-    <li>解压到你有写权限的目录（不要放在 <code>C:\\Program Files</code>）。</li>
-    <li>双击 <code>MiroFish.exe</code>；首次运行需要下载运行环境，按提示确认即可。</li>
-    <li>首次进入会自动打开配置页，填入 <code>LLM_API_KEY</code> 与 <code>ZEP_API_KEY</code> 后保存。</li>
-    <li>如果启动异常，双击 <code>MiroFish-Console.bat</code> 可以看到完整报错日志。</li>
+    <li>Extract it into a directory you can write to (not <code>C:\\Program Files</code>).</li>
+    <li>Double-click <code>MiroFish.exe</code>; the first run downloads the runtime, just confirm the prompt.</li>
+    <li>The settings page opens automatically on first launch: fill in <code>LLM_API_KEY</code> and <code>ZEP_API_KEY</code>, then save.</li>
+    <li>If it fails to start, double-click <code>MiroFish-Console.bat</code> to see the full error log.</li>
   </ol>
-  <footer>由 desktop/serve_builds.py 提供 · 文件直接来自构建产物目录</footer>
+  <footer>Served by desktop/serve_builds.py - the files come straight from the build output directory</footer>
 </div>
 </body>
 </html>
@@ -97,7 +97,7 @@ INDEX_TEMPLATE = """<!doctype html>
 class Handler(BaseHTTPRequestHandler):
     directory = '.'
 
-    def log_message(self, fmt, *args):  # 安静一些
+    def log_message(self, fmt, *args):  # keep it quiet
         sys.stderr.write('%s - %s\n' % (self.address_string(), fmt % args))
 
     def _files(self):
@@ -118,11 +118,11 @@ class Handler(BaseHTTPRequestHandler):
                 f'<div class="icon">{icon}</div>'
                 f'<div class="meta"><div class="name">{html.escape(name)}</div>'
                 f'<div class="size">{human(size)}</div></div>'
-                f'<a class="btn" href="/download/{quote(name)}">下载</a>'
+                f'<a class="btn" href="/download/{quote(name)}">Download</a>'
                 '</div>'
             )
         if not cards:
-            cards.append('<p class="empty">目录中还没有安装包，请先运行桌面版打包脚本。</p>')
+            cards.append('<p class="empty">No installers in this directory yet; run the desktop packaging script first.</p>')
 
         body = INDEX_TEMPLATE.format(cards='\n  '.join(cards)).encode('utf-8')
         self.send_response(200)
@@ -174,16 +174,16 @@ def main():
 
     directory = os.path.abspath(args.dir)
     if not os.path.isdir(directory):
-        raise SystemExit(f'目录不存在: {directory}')
+        raise SystemExit(f'directory does not exist: {directory}')
 
     Handler.directory = directory
     files = [(n, os.path.getsize(os.path.join(directory, n)))
              for n in sorted(os.listdir(directory))
              if os.path.isfile(os.path.join(directory, n))]
-    print(f'[serve] 目录: {directory}')
+    print(f'[serve] directory: {directory}')
     for name, size in files:
         print(f'[serve]   {name}  ({human(size)})')
-    print(f'[serve] 监听 http://{args.host}:{args.port}/')
+    print(f'[serve] listening on http://{args.host}:{args.port}/')
 
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 

@@ -1,18 +1,18 @@
 """
-准备 Windows 桌面版所需的全部“素材”（可在 Linux / macOS / Windows 上运行）。
+Prepare every asset the Windows desktop build needs (runs on Linux / macOS / Windows).
 
-产物（默认放在 build/ 下）：
+Outputs (under build/ by default):
 
-    build/wheels-win312/    Windows x64 的 site-packages（含 torch 等二进制扩展）
-    build/embed312/         官方 embeddable CPython 3.12（解压后）
-    build/MiroFish.exe      交叉编译好的启动器
-    build/MiroFish.ico      图标
+    build/wheels-win312/    the Windows x64 site-packages (including binary extensions such as torch)
+    build/embed312/         the official embeddable CPython 3.12 (extracted)
+    build/MiroFish.exe      the cross-compiled launcher
+    build/MiroFish.ico      the icon
 
-依赖：
+Requirements:
     pip install uv ziglang
-    （zig 仅用于交叉编译启动器；在 Windows 上有 mingw/MSVC 时也可自行编译）
+    (zig is only needed to cross-compile the launcher; on Windows with mingw/MSVC you can compile it yourself)
 
-用法：
+Usage:
     python desktop/fetch_sources.py --build-dir build --python-version 3.12
 """
 
@@ -62,7 +62,7 @@ def run(cmd, **kw):
 def download_wheels(build_dir, python_version):
     target = os.path.join(build_dir, f'wheels-win{str(python_version).replace(".", "")}')
     if os.path.isdir(target) and os.listdir(target):
-        log(f'已存在，跳过下载: {target}')
+        log(f'already present, skipping the download: {target}')
         return target
 
     req_file = os.path.join(build_dir, 'requirements-desktop.txt')
@@ -82,21 +82,21 @@ def download_wheels(build_dir, python_version):
 
 
 def fetch_embeddable(build_dir, python_version):
-    """从 PyPI 上的 python-embed 包中提取官方 embeddable CPython。"""
+    """Extract the official embeddable CPython from the python-embed package on PyPI."""
     short = '.'.join(str(python_version).split('.')[:2])
     target = os.path.join(build_dir, f'embed{short.replace(".", "")}')
     if os.path.isdir(target) and os.listdir(target):
-        log(f'已存在，跳过解压: {target}')
+        log(f'already present, skipping the extraction: {target}')
         return target
 
     pkg = f'{short}.0'
     url = f'{PYPI}/pypi/python-embed/{pkg}/json'
-    log(f'查询 {url}')
+    log(f'Querying {url}')
     with urllib.request.urlopen(url, timeout=60) as resp:
         import json
         data = json.load(resp)
     sdist = next(u for u in data['urls'] if u['filename'].endswith('.tar.gz'))
-    log(f'下载 {sdist["filename"]} ({sdist["size"] / 1e6:.1f} MB)')
+    log(f'Downloading {sdist["filename"]} ({sdist["size"] / 1e6:.1f} MB)')
     with urllib.request.urlopen(sdist['url'], timeout=300) as resp:
         blob = resp.read()
 
@@ -112,7 +112,7 @@ def fetch_embeddable(build_dir, python_version):
             data_zip = os.path.join(root, 'data.zip')
             break
     if not data_zip:
-        raise SystemExit('python-embed 包结构异常：找不到 data.zip')
+        raise SystemExit('unexpected python-embed package layout: no data.zip found')
 
     shutil.rmtree(target, ignore_errors=True)
     os.makedirs(target, exist_ok=True)
@@ -133,10 +133,10 @@ def fetch_embeddable(build_dir, python_version):
 
 
 def build_icon(build_dir):
-    """把 desktop/icon_source.png 转成桌面图标（需要 Pillow）。
+    """Turn desktop/icon_source.png into the desktop icon (needs Pillow).
 
-    小尺寸（<=48px）单独放大主体，保证任务栏 / 资源管理器里清晰可辨。
-    没有 Pillow 时退回标准库绘制的极简图标。
+    Small sizes (<=48px) get the subject scaled up separately so it stays legible in the taskbar / File Explorer.
+    Falls back to a minimal standard-library icon when Pillow is missing.
     """
     ico = os.path.join(DESKTOP_DIR, 'icon.ico')
     png = os.path.join(DESKTOP_DIR, 'icon.png')
@@ -183,7 +183,7 @@ def build_icon(build_dir):
             offset += len(data)
         with open(ico, 'wb') as f:
             f.write(head + directory + blobs)
-        log(f'图标 -> {ico} / {png}')
+        log(f'Icon -> {ico} / {png}')
         return ico
 
     sys.path.insert(0, DESKTOP_DIR)
@@ -192,7 +192,7 @@ def build_icon(build_dir):
         f.write(fallback.ico_bytes())
     with open(png, 'wb') as f:
         f.write(fallback.png_bytes(256))
-    log(f'图标（标准库兜底）-> {ico}')
+    log(f'Icon (standard-library fallback) -> {ico}')
     return ico
 
 
@@ -216,7 +216,7 @@ def compile_launcher(build_dir):
             pass
 
     if not os.path.exists(ico_path or ''):
-        # 保证 app.rc 引用的 icon.ico 一定存在
+        # Make sure the icon.ico referenced by app.rc always exists
         build_icon(build_dir)
 
     if compiler:
@@ -225,19 +225,19 @@ def compile_launcher(build_dir):
             '-o', exe, launcher, rc,
             '-lole32', '-lshell32', '-luser32',
         ], cwd=DESKTOP_DIR)
-        log(f'启动器 -> {exe}')
+        log(f'Launcher -> {exe}')
         return exe
 
     if sys.platform == 'win32':
-        # 本机就是 Windows：用仓库里的批处理调用 MSVC（优先）/ gcc 后备
+        # Already on Windows: call MSVC (preferred) / gcc as a fallback through the repository batch file
         bat = os.path.join(DESKTOP_DIR, 'build_launcher.bat')
         if os.path.exists(bat):
             run(['cmd', '/c', bat], cwd=REPO_ROOT)
             if os.path.exists(exe):
-                log(f'启动器 -> {exe}')
+                log(f'Launcher -> {exe}')
                 return exe
 
-    raise SystemExit('找不到可用的 C 编译器。请先执行: pip install ziglang')
+    raise SystemExit('No usable C compiler found. Run this first: pip install ziglang')
 
 
 def write_version(build_dir):
@@ -262,7 +262,7 @@ def main():
     if not args.skip_exe:
         compile_launcher(args.build_dir)
     write_version(args.build_dir)
-    log('素材准备完成')
+    log('All assets are ready')
 
 
 if __name__ == '__main__':

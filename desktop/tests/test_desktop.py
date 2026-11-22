@@ -1,7 +1,7 @@
 """
-桌面版启动器的单元测试（不依赖 Windows / pywebview）
+Unit tests for the desktop launcher (no Windows / pywebview needed)
 
-运行：
+Run:
     python -m pytest desktop/tests -q
 """
 
@@ -21,7 +21,7 @@ DESKTOP_APP_PATH = os.path.join(DESKTOP_DIR, 'app.py')
 
 
 def _load_desktop_module():
-    """按文件路径加载 desktop/app.py（避免与后端的 app 包重名）。"""
+    """Load desktop/app.py by file path (so it does not clash with the backend app package)."""
     import importlib.util
     import uuid
 
@@ -35,7 +35,7 @@ def _load_desktop_module():
 
 @pytest.fixture()
 def desktop_app(tmp_path, monkeypatch):
-    """加载 desktop/app.py，并把数据目录指向临时目录。"""
+    """Load desktop/app.py and point the data directory at a temporary directory."""
     monkeypatch.setenv('MIROFISH_HOME', str(tmp_path / 'home'))
     monkeypatch.delenv('MIROFISH_DATA_DIR', raising=False)
     monkeypatch.delenv('MIROFISH_ENV_FILE', raising=False)
@@ -54,7 +54,7 @@ def test_ensure_data_dir_creates_env_and_secret(desktop_app):
     assert 'ZEP_API_KEY=' in content
     assert 'SECRET_KEY=' in content
 
-    # SECRET_KEY 应当是随机且足够长的
+    # SECRET_KEY must be random and long enough
     secret = [line for line in content.splitlines() if line.startswith('SECRET_KEY=')][0]
     assert len(secret.split('=', 1)[1]) >= 32
 
@@ -97,11 +97,11 @@ def test_free_port_is_actually_free(desktop_app):
 
     port = desktop_app.free_port(0)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('127.0.0.1', port))  # 不应抛异常
+        s.bind(('127.0.0.1', port))  # must not raise
 
 
 def test_spa_serves_index_and_assets(desktop_app, tmp_path, monkeypatch):
-    """同一个端口既提供前端页面，也提供 /api 与 /health。"""
+    """The same port serves the frontend pages, /api and /health."""
     dist = tmp_path / 'dist'
     (dist / 'assets').mkdir(parents=True)
     (dist / 'index.html').write_text('<html>mirofish-spa</html>', encoding='utf-8')
@@ -111,16 +111,16 @@ def test_spa_serves_index_and_assets(desktop_app, tmp_path, monkeypatch):
     desktop_app.prepare_runtime_env(desktop_app.free_port(0))
     client = desktop_app.start_backend(0).test_client()
 
-    # 首页与前端路由深链接都回落到 index.html
+    # The home page and the frontend deep links all fall back to index.html
     assert 'mirofish-spa' in client.get('/').get_data(as_text=True)
     assert 'mirofish-spa' in client.get('/simulation/abc/start').get_data(as_text=True)
 
-    # 静态资源正常返回
+    # Static assets are served normally
     asset = client.get('/assets/app.js')
     assert asset.status_code == 200
     assert 'console.log' in asset.get_data(as_text=True)
 
-    # API 不会被 SPA 回落吞掉
+    # The API routes are not swallowed by the SPA fallback
     assert client.get('/health').get_json()['status'] == 'ok'
     assert client.get('/api/desktop/status').get_json()['data']['desktop'] is True
     assert client.get('/api/not-exists').status_code == 404
@@ -128,7 +128,7 @@ def test_spa_serves_index_and_assets(desktop_app, tmp_path, monkeypatch):
 
 def test_config_api_roundtrip(desktop_app):
     desktop_app.prepare_runtime_env(desktop_app.free_port(0))
-    from app import create_app  # 后端包（backend/app）
+    from app import create_app  # the backend package (backend/app)
 
     client = create_app().test_client()
 
@@ -150,13 +150,13 @@ def test_config_api_roundtrip(desktop_app):
     assert 'LLM_API_KEY=sk-unit-test-0001' in content
     assert 'ZEP_API_KEY=z_unit_test_0001' in content
 
-    # 已知键被就地替换而不是追加
+    # A known key is replaced in place rather than appended
     assert content.count('LLM_API_KEY=') == 1
 
     status = client.get('/api/desktop/status').get_json()['data']
     assert status['configured'] is True
 
-    # 未修改的脱敏值不应覆盖真实值
+    # An unchanged masked value must not overwrite the real one
     masked = client.get('/api/desktop/config').get_json()['data']['LLM_API_KEY']['masked']
     assert masked != 'sk-unit-test-0001'
     client.post('/api/desktop/config', json={'LLM_API_KEY': masked})
@@ -190,7 +190,7 @@ def test_icon_module_produces_valid_png_and_ico():
 def test_shipped_icon_is_windows_ready():
     ico_path = os.path.join(DESKTOP_DIR, 'icon.ico')
     if not os.path.exists(ico_path):
-        pytest.skip('icon.ico 尚未生成（运行 desktop/fetch_sources.py）')
+        pytest.skip('icon.ico has not been generated yet (run desktop/fetch_sources.py)')
 
     data = open(ico_path, 'rb').read()
     assert data[:4] == b'\x00\x00\x01\x00'

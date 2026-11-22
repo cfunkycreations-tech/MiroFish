@@ -2,21 +2,21 @@
   <div class="settings-page">
     <div class="settings-card">
       <header class="head">
-        <h1>配置 MiroFish</h1>
+        <h1>Configure MiroFish</h1>
         <p class="sub">
-          填写下方两项 Key 后即可开始使用。配置会保存在本机
+          Fill in the two keys below and you are ready to go. Configuration is stored on this machine
           <code v-if="envFile">{{ envFile }}</code>
-          ，重启程序也不会丢失。
+          , so it survives a restart.
         </p>
       </header>
 
       <div v-if="banner" :class="['banner', banner.type]">{{ banner.text }}</div>
 
       <section class="block">
-        <h2>大模型（必填）</h2>
+        <h2>Large language model (required)</h2>
         <p class="hint">
-          支持任意 OpenAI 兼容接口。常用组合：
-          <span class="preset" @click="applyPreset('dashscope')">阿里百炼</span>
+          Any OpenAI-compatible endpoint works. Common choices:
+          <span class="preset" @click="applyPreset('dashscope')">Alibaba Bailian</span>
           <span class="preset" @click="applyPreset('openai')">OpenAI</span>
           <span class="preset" @click="applyPreset('deepseek')">DeepSeek</span>
         </p>
@@ -25,20 +25,20 @@
           <input v-model="form.LLM_API_KEY" type="password" placeholder="sk-..." autocomplete="off" />
         </label>
         <label>
-          <span>接口地址 Base URL</span>
+          <span>Base URL</span>
           <input v-model="form.LLM_BASE_URL" type="text" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
         </label>
         <label>
-          <span>模型名称</span>
+          <span>Model name</span>
           <input v-model="form.LLM_MODEL_NAME" type="text" placeholder="qwen-plus" />
         </label>
       </section>
 
       <section class="block">
-        <h2>Zep 记忆图谱（必填）</h2>
+        <h2>Zep memory graph (required)</h2>
         <p class="hint">
-          用于构建智能体记忆，<a href="https://app.getzep.com/" target="_blank" rel="noopener">app.getzep.com</a>
-          免费额度即可满足常规使用。
+          Used to build agent memory, <a href="https://app.getzep.com/" target="_blank" rel="noopener">app.getzep.com</a>
+          The free tier is enough for normal use.
         </p>
         <label>
           <span>ZEP_API_KEY</span>
@@ -47,31 +47,31 @@
       </section>
 
       <section class="block">
-        <h2>高级（可选）</h2>
+        <h2>Advanced (optional)</h2>
         <label>
-          <span>默认模拟轮数</span>
+          <span>Default simulation rounds</span>
           <input v-model="form.OASIS_DEFAULT_MAX_ROUNDS" type="number" min="1" max="200" placeholder="10" />
         </label>
       </section>
 
       <div class="actions">
         <button class="btn primary" :disabled="saving" @click="save">
-          {{ saving ? '保存中...' : '保存配置' }}
+          {{ saving ? 'Saving...' : 'Save configuration' }}
         </button>
         <button class="btn" :disabled="testing" @click="test">
-          {{ testing ? '测试中...' : '测试连通性' }}
+          {{ testing ? 'Testing...' : 'Test connectivity' }}
         </button>
-        <button class="btn ghost" @click="goHome">返回首页</button>
+        <button class="btn ghost" @click="goHome">Back to home</button>
       </div>
 
       <div v-if="update" class="update">
-        发现新版本 <strong>{{ update.latest }}</strong>（当前 {{ update.current }}）
-        <a v-if="update.url" :href="update.url" target="_blank" rel="noopener">前往下载</a>
+        A new version is available: <strong>{{ update.latest }}</strong> (you have {{ update.current }})
+        <a v-if="update.url" :href="update.url" target="_blank" rel="noopener">Download it</a>
       </div>
 
       <div v-if="testResults" class="results">
         <div v-for="(res, key) in testResults" :key="key" :class="['result', res.ok ? 'ok' : 'fail']">
-          <strong>{{ key === 'llm' ? '大模型' : 'Zep' }}</strong>
+          <strong>{{ key === 'llm' ? 'Large language model' : 'Zep' }}</strong>
           <span>{{ res.detail }}</span>
         </div>
       </div>
@@ -133,11 +133,11 @@ async function load() {
     for (const key of Object.keys(form)) {
       const item = data[key]
       if (!item) continue
-      // 已脱敏的 Key 不回填，避免误写入
+      // A masked key is never written back, so a placeholder cannot be saved by accident
       form[key] = item.value && item.value.includes('...') ? '' : item.value
     }
   } catch (err) {
-    flash('error', '无法读取本地配置：' + (err.message || err))
+    flash('error', 'Could not read the local configuration: ' + (err.message || err))
   }
 }
 
@@ -149,10 +149,10 @@ async function save() {
       if (value !== '' && value !== null && value !== undefined) payload[key] = value
     }
     await service.post('/api/desktop/config', payload)
-    flash('ok', '已保存。新配置立即生效，重新开始一次分析即可使用。')
+    flash('ok', 'Saved. The new configuration takes effect immediately; just start a new analysis to use it.')
     await load()
   } catch (err) {
-    flash('error', '保存失败：' + (err.message || err))
+    flash('error', 'Save failed: ' + (err.message || err))
   } finally {
     saving.value = false
   }
@@ -165,7 +165,7 @@ async function test() {
     const res = await service.post('/api/desktop/config/test', { ...form })
     testResults.value = res.data || {}
   } catch (err) {
-    flash('error', '测试失败：' + (err.message || err))
+    flash('error', 'Test failed: ' + (err.message || err))
   } finally {
     testing.value = false
   }
@@ -181,7 +181,7 @@ async function checkUpdate() {
     const data = res.data || {}
     if (data.update_available) update.value = data
   } catch (err) {
-    // 离线或私有仓库时静默忽略
+    // Silently ignore this when offline or running from a private repository
   }
 }
 

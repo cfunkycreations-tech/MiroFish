@@ -1,5 +1,5 @@
-# MiroFish 桌面版的运行时依赖（Windows x64 / Python 3.10 - 3.13）
-# Setup.bat 会把这些包装进 runtime\venv
+# Runtime dependencies of the MiroFish desktop build (Windows x64 / Python 3.10 - 3.13)
+# Setup.bat installs these into runtime\venv
 flask>=3.0.0
 flask-cors>=6.0.0
 waitress>=3.0.2
@@ -8,7 +8,7 @@ openai>=1.0.0
 zep-cloud==3.13.0
 camel-oasis==0.2.5
 camel-ai==0.2.78
-# camel-ai 0.2.78 需要 mcp 1.x 的 FastMCP，2.x 会导致 import 失败
+# camel-ai 0.2.78 needs FastMCP from mcp 1.x; 2.x makes the import fail
 mcp==1.29.0
 PyMuPDF>=1.24.0,<2
 charset-normalizer>=3.0.0

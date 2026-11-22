@@ -1,6 +1,6 @@
-# MiroFish 桌面版 · 轻量安装（约 400 MB，不安装 torch / transformers / scipy）
-# twitter 平台的「个性化推荐」会自动退化为随机 / 热度推荐，其余功能不受影响。
-# Setup.bat --slim 会先对 camel-oasis 的元数据做去依赖处理，再按此文件安装。
+# MiroFish desktop build - slim install (about 400 MB, no torch / transformers / scipy)
+# "Personalized recommendations" on the twitter platform degrade to random / popularity ranking; nothing else is affected.
+# Setup.bat --slim first strips the dependency declarations from the camel-oasis metadata, then installs from this file.
 flask>=3.0.0
 flask-cors>=6.0.0
 waitress>=3.0.2
@@ -8,10 +8,10 @@ pywebview>=6.2.1
 openai>=1.0.0
 zep-cloud==3.13.0
 camel-ai==0.2.78
-# camel-ai 0.2.78 依赖 mcp 1.x 的 FastMCP，mcp 2.x 会导致 import 失败
+# camel-ai 0.2.78 needs FastMCP from mcp 1.x; mcp 2.x makes the import fail
 mcp==1.29.0
 
-# 从 camel-oasis 的依赖里被移除、但实际需要用到的部分
+# Removed from the camel-oasis dependency list but actually needed at runtime
 igraph==0.11.6
 neo4j==5.23.0
 pandas==2.2.2
@@ -22,7 +22,7 @@ slack-sdk==3.31.0
 requests-oauthlib==2.0.0
 unstructured==0.13.7
 
-# MiroFish 自身依赖
+# MiroFish own dependencies
 numpy
 PyMuPDF>=1.24.0,<2
 charset-normalizer>=3.0.0

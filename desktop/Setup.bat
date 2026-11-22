@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 chcp 65001 >nul
-title MiroFish 首次运行初始化
+title MiroFish first-run setup
 cd /d "%~dp0"
 
 set "ROOT=%~dp0"
@@ -14,9 +14,9 @@ set "CACHE=%ROOT%runtime\.cache"
 set "TMPDIR=%CACHE%\tmp"
 
 rem ============================================================================
-rem  所有缓存/临时文件都放在安装目录(例如 D:)，不使用 C 盘
-rem  —— 这是上一次“磁盘空间不足”的根因：uv 默认把缓存写进
-rem     C:\Users\<你>\AppData\Local\uv\cache
+rem  Every cache and temp file stays on the install drive (e.g. D:), never on C:
+rem  -- that was the root cause of the earlier "not enough disk space": uv caches by default in
+rem     C:\Users\<you>\AppData\Local\uv\cache
 rem ============================================================================
 set "UV_CACHE_DIR=%CACHE%\uv"
 set "UV_LINK_MODE=copy"
@@ -26,15 +26,15 @@ set "TMP=%TMPDIR%"
 set "TEMP=%TMPDIR%"
 
 echo ================================================================
-echo   MiroFish 初始化
+echo  MiroFish setup
 echo ================================================================
-echo   安装目录: %ROOT%
-echo   缓存目录: %CACHE%   ^(全部在本盘，不占用 C 盘^)
+echo   Install directory: %ROOT%
+echo   Cache directory: %CACHE%   ^(all on this drive, nothing on C:^)
 echo.
 
-rem ---------------- 模式选择 ----------------
-rem   --slim : 轻量安装（不装 torch，约 400 MB；twitter 个性化推荐退化为随机/热度）
-rem   默认   : 完整安装（含 torch，约 1.1 GB；所有推荐算法可用）
+rem ---------------- Mode selection ----------------
+rem   --slim : slim install (no torch, about 400 MB; twitter personalized recommendations degrade to random/popularity)
+rem   default: full install (with torch, about 1.1 GB; every recommendation algorithm available)
 set "SLIM=0"
 for %%A in (%*) do (
     if /i "%%~A"=="--slim" set "SLIM=1"
@@ -43,50 +43,50 @@ for %%A in (%*) do (
 set "REQSLIM=%ROOT%app\backend\requirements-desktop-slim.txt"
 if "%SLIM%"=="1" (
     set "REQ=%REQSLIM%"
-    echo   [!] 轻量模式：不安装 torch（省约 700 MB 磁盘与下载时间）
-    echo       twitter 平台的个性化推荐会退化为随机/热度推荐。
+    echo   [!] Slim mode: torch is not installed (saves about 700 MB of disk and download time)
+    echo       Personalized recommendations on the twitter platform fall back to random/popularity.
     echo.
 )
 
 if /i "%~1"=="--clean" goto :cleanonly
 
-rem ---------------- 0. 磁盘空间检查 ----------------
+rem ---------------- 0. Disk space check ----------------
 for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "[math]::Floor((Get-PSDrive -Name '%DRIVE:~0,1%').Free/1MB)" 2^>nul`) do set "FREEMB=%%A"
 if not defined FREEMB set "FREEMB=0"
 set /a FREEGB=%FREEMB%/1024
-echo [0/5] %DRIVE% 剩余空间: %FREEGB% GB
+echo [0/5] %DRIVE% free space: %FREEGB% GB
 set "NEEDMB=3000"
 if "%SLIM%"=="1" set "NEEDMB=1500"
 if %FREEMB% LSS %NEEDMB% (
     echo.
-    echo [X] 空间不足：本盘至少需要 %NEEDMB% MB 可用空间。
-    echo     安装过程峰值约 2.5 GB(含下载缓存)，完成后自动清理缓存，
-    echo     实际占用：完整版约 1.1 GB，轻量版约 0.4 GB。
+    echo [X] Not enough space: this drive needs at least %NEEDMB% MB free.
+    echo     The install peaks at about 2.5 GB (including the download cache); the cache is cleaned up afterwards,
+    echo     so it ends up using about 1.1 GB (full) or about 0.4 GB (slim).
     echo.
-    echo     建议：把整个文件夹移动到空间更大的磁盘后重试，
-    echo     或先清理本盘空间。可用 "%~nx0 --clean" 清理上次残留缓存。
+    echo     Suggestion: move the whole folder to a drive with more space and retry,
+    echo     or free some space on this drive first. Run "%~nx0 --clean" to remove leftovers from a previous attempt.
     pause
     exit /b 1
 )
 if %FREEMB% LSS 5000 (
-    echo     [!] 低于推荐的 5 GB，安装过程中请勿关闭窗口。
+    echo     [!] Below the recommended 5 GB; do not close this window while the install runs.
 )
 
 if not exist "%CACHE%" mkdir "%CACHE%"
 if not exist "%TMPDIR%" mkdir "%TMPDIR%"
 
-rem ---------------- 已装好？ ----------------
+rem ---------------- Already installed? ----------------
 if exist "%PY%" (
     "%PY%" -c "import flask, webview, waitress, openai, pydantic, fitz, camel, oasis, mcp" >nul 2>&1
     if not errorlevel 1 (
-        echo [x] 运行环境完好，跳过安装。
+        echo [x] The runtime is intact, skipping the install.
         goto :shortcut
     )
-    echo [x] 检测到不完整的运行环境，继续补齐依赖...
+    echo [x] An incomplete runtime was found, filling in the missing dependencies...
     goto :install
 )
 
-rem ---------------- 1. 寻找基础 Python ----------------
+rem ---------------- 1. Find a base Python ----------------
 set "BASEPY="
 for %%V in (3.12 3.13 3.11 3.10) do (
     if not defined BASEPY (
@@ -98,49 +98,49 @@ if not defined BASEPY (
 )
 
 if not defined BASEPY (
-    echo [!] 未找到 Python 3.10 - 3.13，尝试用 winget 安装 Python 3.12 ...
+    echo [!] No Python 3.10 - 3.13 found; trying to install Python 3.12 with winget ...
     where winget >nul 2>&1
     if errorlevel 1 (
-        echo [X] 系统没有 winget。请先手动安装 Python 3.12：
+        echo [X] winget is not available. Please install Python 3.12 by hand:
         echo     https://www.python.org/downloads/windows/
-        echo     安装时请勾选 "Add python.exe to PATH"。
+        echo     Tick "Add python.exe to PATH" during the install.
         pause
         exit /b 1
     )
     winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
     set "BASEPY=py -3.12-64"
     !BASEPY! -c "import sys" >nul 2>&1 || (
-        echo [X] Python 安装后仍不可用，请重启电脑后再次运行本脚本。
+        echo [X] Python is still unavailable after installing; restart the computer and run this script again.
         pause
         exit /b 1
     )
 )
-echo [1/5] 基础 Python：%BASEPY%
+echo [1/5] Base Python: %BASEPY%
 
-rem ---------------- 2. 创建独立运行时 ----------------
-echo [2/5] 创建独立运行环境 ^(约 25 MB^)...
+rem ---------------- 2. Create the standalone runtime ----------------
+echo [2/5] Creating the standalone environment ^(about 25 MB^)...
 if not exist "%ROOT%runtime" mkdir "%ROOT%runtime"
 !BASEPY! -m venv "%VENV%"
 if errorlevel 1 (
-    echo [X] 创建虚拟环境失败。若提示空间不足，请先释放本盘空间。
+    echo [X] Failed to create the virtual environment. If it mentions disk space, free some space on this drive first.
     pause
     exit /b 1
 )
 
-rem ---------------- 3. 安装依赖 ----------------
+rem ---------------- 3. Install the dependencies ----------------
 :install
-echo [3/5] 下载并安装依赖 ^(约 1.1 GB，最慢的一步^)...
-echo       缓存位置: %UV_CACHE_DIR%
+echo [3/5] Downloading and installing the dependencies ^(about 1.1 GB, the slowest step^)...
+echo       Cache location: %UV_CACHE_DIR%
 echo.
 if exist "%UV%" (
     "%UV%" pip install --python "%PY%" -r "%REQ%"
     if errorlevel 1 (
         echo.
-        echo [!] 首次安装未完成，正在重试(uv 会复用已下载的部分)...
+        echo [!] The first install did not finish, retrying (uv reuses what it already downloaded)...
         "%UV%" pip install --python "%PY%" -r "%REQ%"
     )
     if errorlevel 1 (
-        echo [!] 改用清华镜像重试...
+        echo [!] Retrying with the Tsinghua mirror...
         "%UV%" pip install --python "%PY%" -r "%REQ%" --default-index https://pypi.tuna.tsinghua.edu.cn/simple
     )
 ) else (
@@ -154,41 +154,41 @@ if exist "%UV%" (
 )
 
 if "%SLIM%"=="1" (
-    echo       补装 OASIS 本体（轻量模式专用）...
+    echo       Adding OASIS itself (slim mode only)...
     if exist "%UV%" (
         "%UV%" pip install --python "%PY%" --no-deps camel-oasis==0.2.5
     )
     "%PY%" "%ROOT%tools\patch_oasis_recsys.py" --slim "%VENV%\Lib\site-packages"
 )
 
-rem ---------------- 4. 校验 ----------------
+rem ---------------- 4. Verify ----------------
 echo.
-echo [4/5] 校验依赖...
-"%PY%" -c "import flask, webview, waitress, openai, pydantic, fitz, camel, oasis, mcp; print('OK: 依赖全部就绪')"
+echo [4/5] Verifying the dependencies...
+"%PY%" -c "import flask, webview, waitress, openai, pydantic, fitz, camel, oasis, mcp; print('OK: all dependencies are ready')"
 if errorlevel 1 (
     echo.
-    echo [X] 依赖校验失败。
-    echo     1^) 若是“磁盘空间不足”，请清理本盘空间后重新运行本脚本；
-    echo        已下载的内容会保留在 %UV_CACHE_DIR%，不会重复下载。
-    echo     2^) 若是网络中断，直接重新运行即可续传。
-    echo     3^) 可运行 "%~nx0 --clean" 清理缓存后再试。
+    echo [X] Dependency verification failed.
+    echo     1^) If it says "not enough disk space", free some space on this drive and run this script again;
+    echo        whatever was downloaded stays in %UV_CACHE_DIR%, so nothing is downloaded twice.
+    echo     2^) If the network dropped, simply run it again to resume.
+    echo     3^) You can run "%~nx0 --clean" to wipe the cache and retry.
     pause
     exit /b 1
 )
 
-rem ---------------- 5. 清理缓存 ----------------
+rem ---------------- 5. Clean the cache ----------------
 if /i "%~1"=="--keep-cache" (
-    echo [5/5] 保留下载缓存：%CACHE%
+    echo [5/5] Keeping the download cache: %CACHE%
 ) else (
-    echo [5/5] 清理下载缓存以释放空间...
+    echo [5/5] Cleaning the download cache to free space...
     rd /s /q "%CACHE%" 2>nul
-    if exist "%CACHE%" echo       [!] 部分缓存未能删除，可手动删除 %CACHE%
+    if exist "%CACHE%" echo       [!] Some cache entries could not be deleted; remove %CACHE% by hand
 )
 
-rem ---------------- 桌面快捷方式 ----------------
+rem ---------------- Desktop shortcut ----------------
 :shortcut
 echo.
-echo 创建桌面快捷方式...
+echo Creating the desktop shortcut...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$w=New-Object -ComObject WScript.Shell; $s=$w.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\MiroFish.lnk');" ^
   "$s.TargetPath='%ROOT%MiroFish.exe'; $s.WorkingDirectory='%ROOT%';" ^
@@ -196,9 +196,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 
 echo.
 echo ================================================================
-echo   初始化完成！双击 MiroFish.exe 即可启动。
-echo   首次启动请填写 %APPDATA%\MiroFish\.env 中的
-echo   LLM_API_KEY 与 ZEP_API_KEY(程序里会自动打开配置页)。
+echo   Setup complete! Double-click MiroFish.exe to start.
+echo   On first start, fill in %APPDATA%\MiroFish\.env -
+echo   LLM_API_KEY and ZEP_API_KEY (the app opens the settings page automatically).
 echo ================================================================
 echo.
 if /i not "%~1"=="--quiet" (
@@ -207,15 +207,15 @@ if /i not "%~1"=="--quiet" (
 exit /b 0
 
 :cleanonly
-echo 清理缓存的下载文件...
+echo Cleaning the cached downloads...
 if exist "%CACHE%" (
-    echo 目录: %CACHE%
+    echo Directory: %CACHE%
     rd /s /q "%CACHE%" 2>nul
 )
 if exist "%CACHE%" (
-    echo [!] 未能完全删除，请关闭占用文件的程序后重试。
+    echo [!] Could not delete everything; close any program using those files and retry.
 ) else (
-    echo 完成，已释放缓存空间。
+    echo Done, the space is freed.
 )
 echo.
 pause

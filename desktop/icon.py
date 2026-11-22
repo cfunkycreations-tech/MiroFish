@@ -1,11 +1,11 @@
 """
-MiroFish 图标生成器
+MiroFish icon generator
 
-不依赖任何三方库（只用 Python 标准库 zlib），把同一份绘制指令分别输出为：
-  - PNG（用于窗口图标 / pywebview，代码里直接内嵌为 base64 字符串）
-  - ICO（多尺寸，用于 Windows 可执行文件）
+Uses no third-party library (only the Python standard library zlib) to render the same drawing commands as:
+  - PNG (for the window icon / pywebview, embedded in the code as a base64 string)
+  - ICO (multiple sizes, for the Windows executable)
 
-图形：深蓝底 + 青色鱼形（MiroFish 的极简标识）。
+Artwork: a deep blue background with a cyan fish (the minimal MiroFish mark).
 """
 
 import struct
@@ -27,7 +27,7 @@ def _blend(dst, src, alpha):
 
 
 def _rounded_mask(x, y, size, radius):
-    """点 (x,y) 是否在圆角矩形内。"""
+    """Whether the point (x,y) lies inside the rounded rectangle."""
     r = radius
     cx = min(max(x, r), size - r)
     cy = min(max(y, r), size - r)
@@ -36,15 +36,15 @@ def _rounded_mask(x, y, size, radius):
 
 
 def _fish_alpha(x, y, size):
-    """返回鱼形在该点的覆盖率（0~1），用超采样调用。"""
+    """Return the fish coverage at this point (0~1); called with supersampling."""
     s = size
     u = (x - s / 2) / (s / 2)   # -1 .. 1
     v = (y - s / 2) / (s / 2)
 
-    # 身体：椭圆
+    # Body: an ellipse
     body = (u / 0.74) ** 2 + (v / 0.40) ** 2 <= 1.0
 
-    # 尾巴：右端三角形（鱼头朝左）
+    # Tail: a triangle at the right end (the fish faces left)
     tail = False
     if 0.42 <= u <= 0.92:
         half = 0.42 * (u - 0.42) / 0.50
@@ -53,9 +53,9 @@ def _fish_alpha(x, y, size):
     if body or tail:
         return 1.0
 
-    # 背鳍：贴在身体上方的三角形
+    # Dorsal fin: a triangle on top of the body
     if -0.16 <= u <= 0.36 and v < 0:
-        # 三角形的三条边：底边在 v=-0.33，顶点在 (0.02, -0.76)
+        # The three edges of the triangle: the base at v=-0.33, the apex at (0.02, -0.76)
         top = -0.33 - 0.43 * (1.0 - abs(u - 0.02) / 0.34)
         if v <= -0.33 and v >= top:
             return 1.0
@@ -64,7 +64,7 @@ def _fish_alpha(x, y, size):
 
 
 def _pixel_color(x, y, size, ss=3):
-    """在 (x, y) 处做 ss×ss 超采样，返回 RGBA。"""
+    """Take an ss x ss supersample at (x, y) and return RGBA."""
     cover = 0.0
     fish = 0.0
     total = ss * ss
@@ -81,13 +81,13 @@ def _pixel_color(x, y, size, ss=3):
         return (0, 0, 0, 0)
 
     a = cover / total
-    # 背景：对角渐变
+    # Background: a diagonal gradient
     t = (x + y) / (2.0 * size)
     bg = tuple(int(round(_lerp(c1, c2, t))) for c1, c2 in zip(BG, BG2))
 
     fish_ratio = fish / total
     if fish_ratio > 0:
-        # 鱼身留白 + 左侧眼睛
+        # The fish body in white with an eye on the left
         c = FISH
         ex = x - size * 0.30
         ey = y - size * 0.47
@@ -124,7 +124,7 @@ def png_bytes(size):
 
 
 def ico_bytes(sizes=(16, 24, 32, 48, 64, 128, 256)):
-    """生成多尺寸 ICO（内部使用 PNG 压缩，Vista+ 支持）。"""
+    """Generate a multi-size ICO (PNG-compressed inside; Vista+ supports it)."""
     images = [png_bytes(s) for s in sizes]
     header = struct.pack('<HHH', 0, 1, len(images))
     offset = 6 + 16 * len(images)

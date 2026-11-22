@@ -1,12 +1,12 @@
 @echo off
-rem 在 GitHub Actions / 本机 “x64 Native Tools 命令行” 里用 MSVC 编译 MiroFish.exe
+rem Compile MiroFish.exe with MSVC in GitHub Actions or a local "x64 Native Tools Command Prompt"
 setlocal
 chcp 65001 >nul
 
 if "%VSCMD_ARG_TGT_ARCH%"=="" (
     set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
     if not exist "%VSWHERE%" (
-        echo [X] 找不到 vswhere.exe，请在 “x64 Native Tools Command Prompt” 中运行。
+        echo [X] vswhere.exe not found; run this from an "x64 Native Tools Command Prompt".
         exit /b 1
     )
     for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSPATH=%%i"
