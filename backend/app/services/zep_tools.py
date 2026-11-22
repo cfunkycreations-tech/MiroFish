@@ -339,7 +339,7 @@ class AgentInterview:
 @dataclass
 class InterviewResult:
     """
-    Interview result (Interview)
+    Interview result
     Contains the answers collected from several simulated Agents
     """
     interview_topic: str  # interview topic
