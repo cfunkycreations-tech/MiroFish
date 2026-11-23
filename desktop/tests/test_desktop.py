@@ -249,3 +249,32 @@ def test_local_llm_counts_as_configured(desktop_app):
         'ZEP_API_KEY': 'z_test_key',
     })
     assert client.get('/api/desktop/status').get_json()['data']['configured'] is True
+
+
+def test_launcher_binary_is_english_and_gui():
+    """The committed launcher must not ship Chinese strings and must be a GUI app."""
+    exe = os.path.join(DESKTOP_DIR, 'MiroFish.exe')
+    if not os.path.exists(exe):
+        pytest.skip('MiroFish.exe has not been built yet (run desktop/fetch_sources.py)')
+
+    import struct
+
+    data = open(exe, 'rb').read()
+    pe = struct.unpack_from('<I', data, 0x3C)[0]
+    assert data[pe:pe + 4] == b'PE\0\0'
+    assert struct.unpack_from('<H', data, pe + 4)[0] == 0x8664        # x86-64
+    assert struct.unpack_from('<H', data, pe + 24 + 68)[0] == 2        # GUI subsystem
+
+    # The diagnostic dialog was Chinese in an earlier build; it must stay English
+    for chinese in ('初始化未完成', '找不到', '运行环境'):
+        assert chinese.encode('utf-16-le') not in data
+    assert 'no Python runtime found'.encode('utf-16-le') in data
+
+
+def test_installer_script_uninstalls_from_the_same_registry_view():
+    """The uninstaller is 32-bit, so it has to be told to use the 64-bit view."""
+    script = open(os.path.join(DESKTOP_DIR, 'installer.nsi'), encoding='utf-8').read()
+    uninstall = script.split('Section "Uninstall"', 1)[1]
+    assert 'SetRegView 64' in uninstall
+    assert '/S' in script and '/D=' in script                     # documented switches
+    assert 'WriteUninstaller' in script

@@ -114,9 +114,11 @@ static int run_setup(const wchar_t *app_dir)
         L"MiroFish first run", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON1);
     if (answer != IDYES) return 0;
 
-    wchar_t cmd[PATH_CAP * 2];
-    /* Pass --no-pause so Setup.bat does not wait for one more keypress at the end */
-    _snwprintf(cmd, PATH_CAP * 2, L"cmd.exe /c \"\"%ls\" --no-pause\"", script);
+    /* Long install paths (C:\Users\<name>\Downloads\MiroFish\...) must not be truncated:
+       a clipped command line makes Setup.bat silently do nothing, which used to show up as
+       "no Python runtime found". */
+    static wchar_t cmd[32768];
+    _snwprintf(cmd, 32768, L"cmd.exe /c \"\"%ls\" --no-pause\"", script);
 
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -124,7 +126,15 @@ static int run_setup(const wchar_t *app_dir)
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
-    if (!CreateProcessW(NULL, cmd, NULL, NULL, TRUE, 0, NULL, app_dir, &si, &pi)) {
+    /* The working directory must exist, otherwise CreateProcess fails outright */
+    const wchar_t *cwd = app_dir;
+    if (!file_exists(app_dir)) cwd = NULL;
+
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, TRUE, 0, NULL, cwd, &si, &pi)) {
+        wchar_t msg[512];
+        _snwprintf(msg, 512, L"Setup.bat could not be started (error %lu).", GetLastError());
+        show_error(msg,
+                   L"Please run Setup.bat in the install directory by hand: it prints the real error.");
         return 0;
     }
     WaitForSingleObject(pi.hProcess, INFINITE);
@@ -170,7 +180,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
                     MoveFileExW(part, aside, MOVEFILE_REPLACE_EXISTING);
                 }
                 show_error(L"MiroFish setup did not finish: no Python runtime found.",
-                           L"Common reasons:\n  1) not enough disk space (the install needs about 3 GB free)\n  2) the network dropped (running it again resumes automatically)\n\nDouble-click Setup.bat in the install directory to initialize again, or check MiroFish-Console.bat for the detailed error.\nYou can also use the fully offline build (no network needed).");
+                           L"Most common causes:\n"
+                           L"  1) antivirus or Windows 'Controlled folder access' blocked the download or the venv\n"
+                           L"     (allow the MiroFish folder, then run it again)\n"
+                           L"  2) not enough disk space (a full install needs about 3 GB free, the slim one about 1.5 GB)\n"
+                           L"  3) no Python 3.10-3.13 and winget is unavailable\n"
+                           L"  4) the network dropped (running it again resumes automatically)\n\n"
+                           L"To see the real error: double-click MiroFish-Console.bat (it keeps the window open),\n"
+                           L"or run Setup.bat in the install directory by hand.\n"
+                           L"The log is in %APPDATA%\\MiroFish\\logs\\desktop.log.");
                 return 3;
             }
         }

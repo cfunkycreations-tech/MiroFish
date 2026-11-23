@@ -187,6 +187,9 @@ SectionEnd
 ; ---------------------------------------------------------------- uninstaller --
 Section "Uninstall"
   SetShellVarContext current
+  ; The installer wrote its keys in the 64-bit view; the uninstaller is a 32-bit
+  ; process, so it has to be told the same thing or the entry would be left behind.
+  SetRegView 64
   !insertmacro StopRunningApp
 
   ; User data lives in %APPDATA%\MiroFish and is deliberately left alone:

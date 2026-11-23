@@ -1,6 +1,8 @@
 @echo off
 setlocal EnableDelayedExpansion
-chcp 65001 >nul
+rem The scripts are pure ASCII, so UTF-8 is only needed for the messages uv prints.
+rem If the console cannot switch (very old builds), carry on instead of dying here.
+chcp 65001 >nul 2>&1
 title MiroFish first-run setup
 cd /d "%~dp0"
 
