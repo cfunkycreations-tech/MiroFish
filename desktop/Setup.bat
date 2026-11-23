@@ -30,6 +30,37 @@ set "PIP_CACHE_DIR=%CACHE%\pip"
 set "TMP=%TMPDIR%"
 set "TEMP=%TMPDIR%"
 
+rem ============================================================================
+rem  Optional logging. When the GUI launcher starts this script it passes --log,
+rem  and the script re-runs itself once with every line mirrored into
+rem  runtime\setup.log (the window may be closed, the text survives). Started by
+rem  hand (double-click) nothing is redirected, so the output stays on screen.
+rem  --log-inner is the internal marker of the child run.
+rem ============================================================================
+if /i "%~1"=="--log-inner" (
+    shift
+) else if /i not "%~1"=="--log" (
+    rem not a logging run: fall through to the normal setup below
+) else (
+    if not exist "%ROOT%runtime" mkdir "%ROOT%runtime" >nul 2>&1
+    set "LOG=%ROOT%runtime\setup.log"
+    if exist "!LOG!" move /y "!LOG!" "!LOG!.old" >nul 2>&1
+    >  "!LOG!" echo MiroFish setup - %DATE% %TIME%
+    >> "!LOG!" echo Install folder: %ROOT%
+    >> "!LOG!" echo.
+    if exist "!LOG!" (
+        rem /S strips exactly the outer quote pair around the script path
+        "%SystemRoot%\System32\cmd.exe" /s /c ""%~f0" --log-inner %*" 1>>"!LOG!" 2>&1
+        set "RC=!errorlevel!"
+        >> "!LOG!" echo.
+        >> "!LOG!" echo [exit code !RC!]
+        exit /b !RC!
+    )
+    rem The log file could not be created (permissions/antivirus): run without it
+    "%SystemRoot%\System32\cmd.exe" /s /c ""%~f0" --log-inner %*"
+    exit /b !errorlevel!
+)
+
 echo ================================================================
 echo  MiroFish setup
 echo ================================================================

@@ -118,13 +118,16 @@ static int run_setup(const wchar_t *app_dir)
        a clipped command line makes Setup.bat silently do nothing, which used to show up as
        "no Python runtime found". */
     static wchar_t cmd[32768];
-    /* In GUI mode this process has no console, so Setup.bat would run detached and its window
-       would vanish ("flashes past"). Give it its own console window and keep it open (cmd /k)
-       so every message stays readable until the user closes it. */
+    /* This used to be built with "cmd.exe /k title X <caret>& echo Y ...". The caret escaped
+       the ampersand, so cmd printed the rest of the line literally and Setup.bat NEVER RAN:
+       the window appeared and stayed empty. Build the line unescaped and let /S strip exactly
+       the outer quotes, so the batch file is really executed. */
     _snwprintf(cmd, 32768,
-               L"cmd.exe /k title MiroFish setup ^& echo Running the first-run setup; "
-               L"this window stays open so you can read the result.^& echo.^& "
-               L"\"%ls\" --no-pause",
+               L"cmd.exe /S /c \"\"%ls\" --log"
+               L" & echo."
+               L" & echo [The window closes in 20 seconds - everything above is the log,"
+               L" screenshot it if needed]"
+               L" & timeout /t 20 >nul\"",
                script);
 
     STARTUPINFOW si;
@@ -188,16 +191,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
                     _snwprintf(aside, PATH_CAP, L"%ls.stale", part);
                     MoveFileExW(part, aside, MOVEFILE_REPLACE_EXISTING);
                 }
-                show_error(L"MiroFish setup did not finish: no Python runtime found.",
+                show_error(L"MiroFish setup did not finish, so the app cannot start yet.",
+                           L"Everything Setup.bat printed was shown in its own window and is now gone,\n"
+                           L"but the last lines of that window are written to:\n"
+                           L"     runtime\\setup.log   (in the install folder)\n\n"
                            L"Most common causes:\n"
                            L"  1) antivirus or Windows 'Controlled folder access' blocked the download or the venv\n"
                            L"     (allow the MiroFish folder, then run it again)\n"
-                           L"  2) not enough disk space (a full install needs about 3 GB free, the slim one about 1.5 GB)\n"
-                           L"  3) no Python 3.10-3.13 and winget is unavailable\n"
-                           L"  4) the network dropped (running it again resumes automatically)\n\n"
-                           L"To see the real error: double-click MiroFish-Console.bat (it keeps the window open),\n"
-                           L"or run Setup.bat in the install directory by hand.\n"
-                           L"The log is in %APPDATA%\\MiroFish\\logs\\desktop.log.");
+                           L"  2) not enough disk space (full install: about 3 GB free, slim: about 1.5 GB)\n"
+                           L"  3) the network dropped (running setup again resumes the download)\n\n"
+                           L"Next step: open the Start Menu folder 'MiroFish' and click\n"
+                           L"'Setup (download runtime)'. That window stays open with the real error.\n"
+                           L"Send that text and it can be fixed immediately.");
                 return 3;
             }
         }

@@ -268,7 +268,8 @@ def test_launcher_binary_is_english_and_gui():
     # The diagnostic dialog was Chinese in an earlier build; it must stay English
     for chinese in ('初始化未完成', '找不到', '运行环境'):
         assert chinese.encode('utf-16-le') not in data
-    assert 'no Python runtime found'.encode('utf-16-le') in data
+    assert 'MiroFish setup did not finish'.encode('utf-16-le') in data
+    assert 'runtime\\setup.log'.encode('utf-16-le') in data
 
 
 def test_installer_script_uninstalls_from_the_same_registry_view():
@@ -300,8 +301,21 @@ def test_setup_can_bootstrap_python_with_uv():
 
 
 def test_launcher_keeps_the_setup_console_visible():
-    """The GUI launcher has no console, so it must open one that stays until closed."""
+    """The GUI launcher has no console, so it must open one with visible output."""
     source = open(os.path.join(DESKTOP_DIR, 'launcher.c'), encoding='utf-8').read()
     assert 'CREATE_NEW_CONSOLE' in source
-    assert 'cmd.exe /k' in source            # /k keeps the window open (/c closes it)
+    assert 'cmd.exe /S /c' in source         # /S: the outer quote pair is stripped exactly
     assert ' 32768' in source                # long download paths are not truncated
+    # The caret escaped the ampersands, so cmd printed the rest of the line instead of
+    # running Setup.bat: the window opened and stayed empty. Never come back.
+    assert '^&' not in source
+    assert 'timeout /t' in source            # the window keeps the text readable
+
+
+def test_setup_logs_to_a_file_only_when_asked():
+    """The launcher passes --log; a double-clicked script must keep its output on screen."""
+    script = open(os.path.join(DESKTOP_DIR, 'Setup.bat'), encoding='utf-8').read()
+    assert '--log-inner' in script and '--log' in script
+    # the logging re-run must be real CRLF batch, not escaped ampersands
+    assert 'cmd.exe" /s /c ""%~f0" --log-inner' in script
+    assert 'runtime\\setup.log' in script

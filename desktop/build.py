@@ -212,6 +212,77 @@ def write_console_bat(stage):
                 'pause\r\n')
 
 
+def write_doctor_bat(stage):
+    """Diagnostic script: prints the environment and what Setup.bat decided, into a text file."""
+    path = os.path.join(stage, f'{APP_NAME}-Doctor.bat')
+    lines = [
+        '@echo off',
+        'chcp 65001 >nul 2>&1',
+        'title MiroFish diagnostics',
+        'cd /d "%~dp0"',
+        'set "OUT=%~dp0doctor-report.txt"',
+        'echo MiroFish diagnostics - %DATE% %TIME% > "%OUT%"',
+        'echo Folder: %~dp0 >> "%OUT%"',
+        'echo. >> "%OUT%"',
+        '',
+        'echo --- Windows --- >> "%OUT%"',
+        'ver >> "%OUT%" 2>&1',
+        'wmic os get Caption,Version,OSArchitecture /value >> "%OUT%" 2>&1',
+        '',
+        'echo --- Processors and memory --- >> "%OUT%"',
+        'echo PROCESSOR_ARCHITECTURE=%PROCESSOR_ARCHITECTURE% >> "%OUT%"',
+        'wmic computersystem get TotalPhysicalMemory /value >> "%OUT%" 2>&1',
+        '',
+        'echo --- Free space --- >> "%OUT%"',
+        'dir /-c "%~d0\\" | find /i "bytes free" >> "%OUT%" 2>&1',
+        '',
+        'echo --- Python launchers --- >> "%OUT%"',
+        'where py >> "%OUT%" 2>&1',
+        'py -0p >> "%OUT%" 2>&1',
+        'where python >> "%OUT%" 2>&1',
+        'python -c "import sys;print(sys.version, sys.executable)" >> "%OUT%" 2>&1',
+        '',
+        'echo --- Conda / Miniconda / Anaconda --- >> "%OUT%"',
+        'where conda >> "%OUT%" 2>&1',
+        'echo CONDA_PREFIX=%CONDA_PREFIX% >> "%OUT%"',
+        'for %%D in ("%CONDA_PREFIX%" "%USERPROFILE%\\miniconda3" "%USERPROFILE%\\anaconda3" "%USERPROFILE%\\miniforge3" "%LOCALAPPDATA%\\miniconda3" "%LOCALAPPDATA%\\anaconda3" "%LOCALAPPDATA%\\Continuum\\anaconda3" "%ProgramData%\\miniconda3" "%ProgramData%\\anaconda3" "%ProgramData%\\miniforge3" "C:\\miniconda3" "C:\\anaconda3") do (',
+        '    if exist "%%~D\\python.exe" (',
+        '        echo [found] %%~D\\python.exe >> "%OUT%"',
+        '        "%%~D\\python.exe" -V >> "%OUT%" 2>&1',
+        '    )',
+        ')',
+        '',
+        'echo --- winget / uv --- >> "%OUT%"',
+        'where winget >> "%OUT%" 2>&1',
+        'winget --version >> "%OUT%" 2>&1',
+        'if exist "tools\\uv.exe" ( "tools\\uv.exe" --version >> "%OUT%" 2>&1 ) else ( echo tools\\uv.exe missing >> "%OUT%" )',
+        '',
+        'echo --- Runtime state --- >> "%OUT%"',
+        'if exist "runtime\\venv\\Scripts\\python.exe" (echo venv present >> "%OUT%") else (echo venv MISSING >> "%OUT%")',
+        'if exist "runtime\\python-managed" (echo private python present >> "%OUT%") else (echo private python missing >> "%OUT%")',
+        'if exist "runtime\\setup.log" (echo setup.log present >> "%OUT%") else (echo setup.log missing >> "%OUT%")',
+        '',
+        'echo --- Last setup log --- >> "%OUT%"',
+        'if exist "runtime\\setup.log" ( type "runtime\\setup.log" >> "%OUT%" ) else ( echo none >> "%OUT%" )',
+        '',
+        'echo --- Antivirus / Security --- >> "%OUT%"',
+        'powershell -NoProfile -Command "Get-MpComputerStatus | Select-Object -Property AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled | Format-List" >> "%OUT%" 2>&1',
+        'powershell -NoProfile -Command "Get-MpPreference | Select-Object -ExpandProperty ControlledFolderAccessProtectionSettings" >> "%OUT%" 2>&1',
+        '',
+        'echo done. >> "%OUT%"',
+        'echo ============================================================',
+        f'echo  Diagnostics written to:',
+        'echo  %OUT%',
+        'echo ============================================================',
+        'echo Open that file with Notepad and send it as-is.',
+        'echo.',
+        'notepad "%OUT%"',
+        'pause',
+    ]
+    with open(path, 'w', encoding='utf-8', newline='') as f:
+        f.write('\r\n'.join(lines) + '\r\n')
+
+
 def write_readme(stage, mode):
     offline = mode == 'offline'
     extra = ('This package bundles the Python runtime and every dependency; no internet and no Python install needed.\n'
@@ -258,7 +329,12 @@ def write_readme(stage, mode):
       * every cache stays in runtime\\.cache inside the install directory, so the C: drive is untouched.
 
 4. When something goes wrong
+    * FIRST: double-click MiroFish-Doctor.bat. It writes doctor-report.txt next to this file
+      and opens it. That report contains the Windows version, every Python / Miniconda /
+      Anaconda installation that was found, the free space, the antivirus state and the
+      complete last Setup.bat log. Send that file and the cause is immediately visible.
     * Double-click MiroFish-Console.bat: it keeps a console window open so the error is visible.
+    * Setup.bat started from MiroFish.exe writes %~dp0runtime\\setup.log (previous run: setup.log.old).
     * Logs: %APPDATA%\\MiroFish\\logs\\desktop.log
     * The online download was interrupted: double-click MiroFish.exe or Setup.bat again.
     * A blank window: Edge WebView2 is required (usually included with Win10/11);
@@ -350,6 +426,7 @@ def main():
     shutil.copy2(os.path.join(DESKTOP_DIR, 'Setup-Slim.bat'), os.path.join(stage, 'Setup-Slim.bat'))
     copy_tools(stage, args.tools)
     write_console_bat(stage)
+    write_doctor_bat(stage)
     write_readme(stage, args.mode)
 
     if args.mode == 'offline':
