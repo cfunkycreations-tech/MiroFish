@@ -278,3 +278,30 @@ def test_installer_script_uninstalls_from_the_same_registry_view():
     assert 'SetRegView 64' in uninstall
     assert '/S' in script and '/D=' in script                     # documented switches
     assert 'WriteUninstaller' in script
+
+
+def test_setup_finds_miniconda_and_anaconda():
+    """Miniconda/Anaconda have python.exe but no py.exe and nothing on PATH."""
+    script = open(os.path.join(DESKTOP_DIR, 'Setup.bat'), encoding='utf-8').read()
+    assert 'miniconda3' in script and 'anaconda3' in script
+    assert 'where conda' in script
+    # the abort message must name conda as a way out
+    assert 'Miniconda' in script
+
+
+def test_setup_can_bootstrap_python_with_uv():
+    """Without any system Python, uv has to be allowed to fetch one (no winget needed)."""
+    script = open(os.path.join(DESKTOP_DIR, 'Setup.bat'), encoding='utf-8').read()
+    assert 'UV_PYTHON_DOWNLOADS=automatic' in script
+    assert 'UV_PYTHON_DOWNLOADS=never' not in script
+    assert 'venv --python 3.12' in script
+    # the private interpreter must stay inside the install directory
+    assert 'UV_PYTHON_INSTALL_DIR=%ROOT%' in script
+
+
+def test_launcher_keeps_the_setup_console_visible():
+    """The GUI launcher has no console, so it must open one that stays until closed."""
+    source = open(os.path.join(DESKTOP_DIR, 'launcher.c'), encoding='utf-8').read()
+    assert 'CREATE_NEW_CONSOLE' in source
+    assert 'cmd.exe /k' in source            # /k keeps the window open (/c closes it)
+    assert ' 32768' in source                # long download paths are not truncated

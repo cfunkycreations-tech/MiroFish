@@ -22,7 +22,10 @@ rem     C:\Users\<you>\AppData\Local\uv\cache
 rem ============================================================================
 set "UV_CACHE_DIR=%CACHE%\uv"
 set "UV_LINK_MODE=copy"
-set "UV_PYTHON_DOWNLOADS=never"
+rem Let uv fetch a standalone CPython when no system Python is usable:
+rem that removes the winget / PATH dependency that used to dead-end the first run.
+set "UV_PYTHON_DOWNLOADS=automatic"
+set "UV_PYTHON_INSTALL_DIR=%ROOT%runtime\python-managed"
 set "PIP_CACHE_DIR=%CACHE%\pip"
 set "TMP=%TMPDIR%"
 set "TEMP=%TMPDIR%"
@@ -98,21 +101,103 @@ for %%V in (3.12 3.13 3.11 3.10) do (
 if not defined BASEPY (
     python -c "import sys;assert (3,10)<=sys.version_info[:2]<(3,14)" >nul 2>&1 && set "BASEPY=python"
 )
+rem py.exe / python.exe are often installed after this window started, so PATH does not
+rem contain them yet: probe the well-known locations directly.
+if not defined BASEPY (
+    for %%V in (312 313 311 310) do (
+        if not defined BASEPY (
+            if exist "%LOCALAPPDATA%\\Programs\\Python\\Python%%V\\python.exe" set "BASEPY=%LOCALAPPDATA%\\Programs\\Python\\Python%%V\\python.exe"
+        )
+        if not defined BASEPY (
+            if exist "%ProgramFiles%\\Python%%V\\python.exe" set "BASEPY=%ProgramFiles%\\Python%%V\\python.exe"
+        )
+    )
+)
+
+rem Miniconda / Anaconda ship their own python.exe but add nothing to PATH and have no py.exe
+rem launcher, so the checks above miss them. Probe the standard install roots and a conda in PATH.
+if not defined BASEPY (
+    for %%D in (
+        "%CONDA_PREFIX%"
+        "%USERPROFILE%\miniconda3"
+        "%USERPROFILE%\anaconda3"
+        "%USERPROFILE%\miniforge3"
+        "%LOCALAPPDATA%\miniconda3"
+        "%LOCALAPPDATA%\anaconda3"
+        "%LOCALAPPDATA%\Continuum\anaconda3"
+        "%ProgramData%\miniconda3"
+        "%ProgramData%\anaconda3"
+        "%ProgramData%\miniforge3"
+        "C:\miniconda3"
+        "C:\anaconda3"
+    ) do (
+        if not defined BASEPY (
+            if exist "%%~D\python.exe" (
+                "%%~D\python.exe" -c "import sys;assert (3,10)<=sys.version_info[:2]<(3,14)" >nul 2>&1 && set "BASEPY=%%~D\python.exe"
+            )
+        )
+    )
+)
+if not defined BASEPY (
+    for /f "delims=" %%P in ('where conda 2^>nul') do (
+        if not defined BASEPY if exist "%%~dpPpython.exe" (
+            "%%~dpPpython.exe" -c "import sys;assert (3,10)<=sys.version_info[:2]<(3,14)" >nul 2>&1 && set "BASEPY=%%~dpPpython.exe"
+        )
+    )
+)
+
+if not defined BASEPY if exist "%UV%" (
+    echo [!] No system Python 3.10 - 3.13 found; letting uv download a private CPython 3.12 ...
+    echo       It is stored in %ROOT%runtime\\python-managed, so nothing is installed system-wide.
+    "%UV%" venv --python 3.12 "%VENV%"
+    if exist "%PY%" (
+        echo       Private Python ready.
+        goto :install
+    )
+    echo [!] uv could not provision Python, falling back to winget ...
+)
 
 if not defined BASEPY (
     echo [!] No Python 3.10 - 3.13 found; trying to install Python 3.12 with winget ...
     where winget >nul 2>&1
     if errorlevel 1 (
-        echo [X] winget is not available. Please install Python 3.12 by hand:
-        echo     https://www.python.org/downloads/windows/
-        echo     Tick "Add python.exe to PATH" during the install.
+        echo [X] No usable Python was found and winget is not available.
+        echo     Install any one of these, then run this script again:
+        echo       - Python 3.12 from https://www.python.org/downloads/windows/
+        echo       ^(tick "Add python.exe to PATH"^)
+        echo       - Miniconda from https://docs.conda.io/en/latest/miniconda.html
+        echo     If Miniconda or Anaconda is already installed somewhere unusual, start the
+        echo     "Anaconda Prompt" and run this script from there.
         pause
         exit /b 1
     )
     winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
-    set "BASEPY=py -3.12-64"
-    !BASEPY! -c "import sys" >nul 2>&1 || (
-        echo [X] Python is still unavailable after installing; restart the computer and run this script again.
+    rem winget changes PATH for NEW processes only, so re-read it from the registry
+    for /f "usebackq tokens=2,*" %%A in (`reg query "HKCU\\Environment" /v Path 2^>nul ^| find /i "Path"`) do set "USERPATH=%%B"
+    set "PATH=%PATH%;%USERPATH%;%LOCALAPPDATA%\\Programs\\Python\\Python312;%LOCALAPPDATA%\\Programs\\Python\\Launcher"
+    set "BASEPY="
+    for %%V in (3.12 3.13 3.11 3.10) do (
+        if not defined BASEPY (
+            py -%%V-64 -c "import sys" >nul 2>&1 && set "BASEPY=py -%%V-64"
+        )
+    )
+    if not defined BASEPY (
+        for %%V in (312 313 311 310) do (
+            if not defined BASEPY (
+                if exist "%LOCALAPPDATA%\\Programs\\Python\\Python%%V\\python.exe" set "BASEPY=%LOCALAPPDATA%\\Programs\\Python\\Python%%V\\python.exe"
+            )
+            if not defined BASEPY (
+                if exist "%ProgramFiles%\\Python%%V\\python.exe" set "BASEPY=%ProgramFiles%\\Python%%V\\python.exe"
+            )
+        )
+    )
+    if defined BASEPY !BASEPY! -c "import sys" >nul 2>&1
+    if not defined BASEPY (
+        echo [X] Python is still unavailable after installing.
+        echo     1^) Close this window and open a NEW one, then run Setup.bat again ^(PATH is only
+        echo        refreshed for new processes^).
+        echo     2^) If that still fails, install Python 3.12 from https://www.python.org/downloads/windows/
+        echo        and tick "Add python.exe to PATH".
         pause
         exit /b 1
     )

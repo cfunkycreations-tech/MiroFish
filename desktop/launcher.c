@@ -118,7 +118,14 @@ static int run_setup(const wchar_t *app_dir)
        a clipped command line makes Setup.bat silently do nothing, which used to show up as
        "no Python runtime found". */
     static wchar_t cmd[32768];
-    _snwprintf(cmd, 32768, L"cmd.exe /c \"\"%ls\" --no-pause\"", script);
+    /* In GUI mode this process has no console, so Setup.bat would run detached and its window
+       would vanish ("flashes past"). Give it its own console window and keep it open (cmd /k)
+       so every message stays readable until the user closes it. */
+    _snwprintf(cmd, 32768,
+               L"cmd.exe /k title MiroFish setup ^& echo Running the first-run setup; "
+               L"this window stays open so you can read the result.^& echo.^& "
+               L"\"%ls\" --no-pause",
+               script);
 
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
@@ -130,7 +137,7 @@ static int run_setup(const wchar_t *app_dir)
     const wchar_t *cwd = app_dir;
     if (!file_exists(app_dir)) cwd = NULL;
 
-    if (!CreateProcessW(NULL, cmd, NULL, NULL, TRUE, 0, NULL, cwd, &si, &pi)) {
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, TRUE, CREATE_NEW_CONSOLE, NULL, cwd, &si, &pi)) {
         wchar_t msg[512];
         _snwprintf(msg, 512, L"Setup.bat could not be started (error %lu).", GetLastError());
         show_error(msg,
@@ -140,6 +147,8 @@ static int run_setup(const wchar_t *app_dir)
     WaitForSingleObject(pi.hProcess, INFINITE);
     DWORD code = 1;
     GetExitCodeProcess(pi.hProcess, &code);
+    /* cmd /k leaves the console open, so the user can always read what happened;
+       that window is closed by hand, not by us. */
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
     return code == 0;
