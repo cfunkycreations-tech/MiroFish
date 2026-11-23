@@ -19,6 +19,7 @@ from openai import OpenAI
 from zep_cloud.client import Zep
 
 from ..config import Config
+from ..utils.llm_client import resolve_api_key
 from ..utils.logger import get_logger
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
@@ -185,8 +186,8 @@ class OasisProfileGenerator:
         zep_api_key: Optional[str] = None,
         graph_id: Optional[str] = None
     ):
-        self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
+        self.api_key = resolve_api_key(api_key or Config.LLM_API_KEY, self.base_url)
         self.model_name = model_name or Config.LLM_MODEL_NAME
         
         if not self.api_key:

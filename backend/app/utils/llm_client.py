@@ -14,6 +14,26 @@ from ..config import Config
 
 logger = logging.getLogger('mirofish.llm')
 
+# Local, self-hosted providers (Ollama, llama.cpp, LM Studio, OmniRoute, ...) do
+# not authenticate, but the OpenAI SDK refuses an empty key, so use a placeholder.
+LOCAL_HOSTS = ('127.0.0.1', 'localhost', '0.0.0.0', '[::1]', 'host.docker.internal')
+PLACEHOLDER_KEY = 'local'
+
+
+def is_local_endpoint(base_url: str) -> bool:
+    """Whether this base URL points at a local server that needs no API key."""
+    host = (base_url or '').split('//', 1)[-1].split('/', 1)[0].rsplit(':', 1)[0].lower()
+    return host in LOCAL_HOSTS
+
+
+def resolve_api_key(api_key: str, base_url: str) -> str:
+    """Return a usable key: the configured one, or a placeholder for local servers."""
+    if api_key:
+        return api_key
+    if is_local_endpoint(base_url):
+        return PLACEHOLDER_KEY
+    return ''  
+
 
 class LLMClient:
     """The LLM client"""
@@ -29,8 +49,8 @@ class LLMClient:
         base_url: Optional[str] = None,
         model: Optional[str] = None
     ):
-        self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
+        self.api_key = resolve_api_key(api_key or Config.LLM_API_KEY, self.base_url)
         self.model = model or Config.LLM_MODEL_NAME
         
         if not self.api_key:

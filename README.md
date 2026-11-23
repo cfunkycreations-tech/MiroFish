@@ -111,17 +111,28 @@ cp .env.example .env
 **Required Environment Variables:**
 
 ```env
-# LLM API Configuration (supports any LLM API with OpenAI SDK format)
-# Recommended: Alibaba Qwen-plus model via Bailian Platform: https://bailian.console.aliyun.com/
+# LLM API Configuration (any OpenAI-compatible endpoint)
+# Free and open routes (no paid account needed):
+#   OpenRouter : https://openrouter.ai/api/v1   openrouter/free
+#                free key at https://openrouter.ai/keys, models ending in ":free" cost nothing
+#   OmniRoute  : http://127.0.0.1:20128/v1      auto (npm i -g omniroute; key optional by default)
+#   Ollama     : http://127.0.0.1:11434/v1      llama3.1   (local, no key needed)
+#   Groq       : https://api.groq.com/openai/v1 llama-3.3-70b-versatile
+#   Gemini     : https://generativelanguage.googleapis.com/v1beta/openai  gemini-2.5-flash
+# Paid routes: Alibaba Bailian (https://bailian.console.aliyun.com/), OpenAI, DeepSeek
 # High consumption, try simulations with fewer than 40 rounds first
 LLM_API_KEY=your_api_key
-LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-LLM_MODEL_NAME=qwen-plus
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL_NAME=openrouter/free
 
 # Zep Cloud Configuration
 # Free monthly quota is sufficient for simple usage: https://app.getzep.com/
 ZEP_API_KEY=your_zep_api_key
 ```
+
+Local providers (Ollama, llama.cpp, LM Studio, OmniRoute) need no API key at all: leave
+`LLM_API_KEY` empty and point `LLM_BASE_URL` at the local port, and MiroFish fills in a
+placeholder internally.
 
 #### 2. Install Dependencies
 
@@ -172,18 +183,34 @@ Reads `.env` from root directory by default, maps ports `3000 (frontend) / 5001 
 
 > Mirror address for faster pulling is provided as comments in `docker-compose.yml`, replace if needed.
 
-### Option 3: Windows Desktop App (.exe, no install)
+### Option 3: Windows 10/11 Desktop Installer
 
-If you'd rather not set up Python and Node.js, grab the packaged desktop build:
+If you'd rather not set up Python and Node.js, run the installer:
 
-1. Download from [Releases](https://github.com/cfunkycreations-tech/MiroFish/releases):
-   `MiroFish-*-windows-x64-offline.zip` (fully offline; bundles Python and all dependencies)
-   or `MiroFish-*-windows-x64-setup.zip` (small; downloads the runtime on first launch).
-2. Extract anywhere you have write access (avoid `C:\Program Files`, which needs admin rights).
-3. Double-click `MiroFish.exe`:
+1. Download `MiroFish-<version>-windows-x64-setup.exe` from
+   [Releases](https://github.com/cfunkycreations-tech/MiroFish/releases).
+2. Double-click it. The installer needs **no administrator rights**: it installs into
+   `%LOCALAPPDATA%\Programs\MiroFish`, adds a Start Menu entry (plus a desktop shortcut and an
+   uninstaller) and shows up in *Settings > Apps > Installed apps*.
+   `/S` installs silently; `/D=<path>` picks another folder.
+3. Start **MiroFish** from the Start Menu. The first launch downloads the Python runtime
+   (about 1.1 GB, roughly 400 MB with the slim setup), after which the app runs offline.
+4. The app opens the **Configure MiroFish** page on the first run: choose a free route such as
+   OpenRouter, OmniRoute or Ollama, paste the key, hit *Test connection* and *Save*.
+
+The portable ZIPs (`MiroFish-*-windows-x64-setup.zip` / `-offline.zip`) still work the same way:
+extract anywhere you can write and double-click `MiroFish.exe`.
+
+> Build the installer: `python desktop/build.py --mode setup --out dist` then
+> `python desktop/build_installer.py --no-build` (needs NSIS 3; `desktop/installer.nsi` holds the script).
+
+Portable build details:
+
+1. Extract the ZIP anywhere you have write access.
+2. Double-click `MiroFish.exe`:
    * offline build: the native window opens straight away;
    * setup build: the first launch offers to download the runtime (about 500 MB–1 GB), after which it works offline.
-4. On first launch the app opens the **Configure MiroFish** page — paste your LLM and Zep
+3. On first launch the app opens the **Configure MiroFish** page — paste your LLM and Zep
    API keys, hit *Test connection*, then *Save*, and you can start predicting.
 
 Desktop highlights:
@@ -200,6 +227,24 @@ Desktop highlights:
 > embeddable Python, then `python desktop/build.py --mode offline` (or `--mode setup`).
 > Pushing a `v*` tag triggers the `desktop-build` GitHub Actions workflow on `windows-latest`,
 > which uploads the release assets.
+
+#### Running it for free
+
+MiroFish talks to any OpenAI-compatible endpoint, so a paid LLM account is optional. All of these
+are one click away in the app's settings page:
+
+| Route | Base URL | Model | Cost |
+|-------|----------|-------|------|
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `openrouter/free` (or any `:free` model) | free key from [openrouter.ai/keys](https://openrouter.ai/keys) |
+| **OmniRoute** | `http://127.0.0.1:20128/v1` | `auto` | free, self-hosted: `npm install -g omniroute` then `omniroute` |
+| **Ollama** | `http://127.0.0.1:11434/v1` | `llama3.1` (or any pulled model) | free, fully local, no key |
+| **Groq** | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | free tier |
+| **Google AI Studio** | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-flash` | free tier |
+
+Local routes (OmniRoute, Ollama, LM Studio, llama.cpp) need no API key at all — leave
+`LLM_API_KEY` empty and MiroFish fills in a placeholder internally. The knowledge-graph memory
+still needs the free **Zep Cloud** key ([app.getzep.com](https://app.getzep.com/)); it is what
+stores the graph the simulation reads from.
 
 ## 📬 Join the Conversation
 

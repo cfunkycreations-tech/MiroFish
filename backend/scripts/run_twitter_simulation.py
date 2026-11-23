@@ -81,6 +81,12 @@ class MaxTokensWarningFilter(logging.Filter):
 logging.getLogger().addFilter(MaxTokensWarningFilter())
 
 
+def _local_endpoint(base_url):
+    """Whether the base URL points at a local, unauthenticated OpenAI-compatible server."""
+    host = (base_url or "").split("//", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0].lower()
+    return host in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]", "host.docker.internal")
+
+
 def setup_oasis_logging(log_dir: str):
     """Configure the OASIS logging to use a log file with a fixed name"""
     os.makedirs(log_dir, exist_ok=True)
@@ -446,8 +452,13 @@ class TwitterSimulationRunner:
         if llm_api_key:
             os.environ["OPENAI_API_KEY"] = llm_api_key
         
+        # Local providers (Ollama, LM Studio, OmniRoute, ...) need no key; camel-ai still
+        # insists on OPENAI_API_KEY, so use a harmless placeholder for them.
         if not os.environ.get("OPENAI_API_KEY"):
-            raise ValueError("The API key is missing; set LLM_API_KEY in the .env file at the project root")
+            if _local_endpoint(llm_base_url):
+                os.environ["OPENAI_API_KEY"] = "local"
+            else:
+                raise ValueError("The API key is missing; set LLM_API_KEY in the .env file at the project root")
         
         if llm_base_url:
             os.environ["OPENAI_API_BASE_URL"] = llm_base_url

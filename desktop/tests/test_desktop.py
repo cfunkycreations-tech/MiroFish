@@ -197,3 +197,55 @@ def test_shipped_icon_is_windows_ready():
     count = int.from_bytes(data[4:6], 'little')
     sizes = [data[6 + i * 16] or 256 for i in range(count)]
     assert 16 in sizes and 256 in sizes
+
+
+def test_local_providers_need_no_api_key():
+    """Ollama / LM Studio / OmniRoute serve without authentication, so no key is required."""
+    sys.path.insert(0, BACKEND_DIR)
+    from app.utils.llm_client import is_local_endpoint, resolve_api_key
+
+    assert is_local_endpoint('http://127.0.0.1:11434/v1')
+    assert is_local_endpoint('http://localhost:20128/v1')
+    assert is_local_endpoint('http://0.0.0.0:1234/v1')
+    assert not is_local_endpoint('https://openrouter.ai/api/v1')
+    assert not is_local_endpoint('https://api.groq.com/openai/v1')
+
+    # A real key is always kept, a local endpoint gets a placeholder, a remote one stays empty
+    assert resolve_api_key('sk-real', 'https://openrouter.ai/api/v1') == 'sk-real'
+    assert resolve_api_key('', 'http://127.0.0.1:11434/v1') == 'local'
+    assert resolve_api_key('', 'https://openrouter.ai/api/v1') == ''
+
+
+def test_free_provider_endpoints_are_documented():
+    """The free routes the user asked for must be discoverable from the shipped config."""
+    for name in ('.env.example', os.path.join('desktop', 'env.example')):
+        text = open(os.path.join(os.path.dirname(DESKTOP_DIR), name), encoding='utf-8').read()
+        assert 'https://openrouter.ai/api/v1' in text
+        assert '127.0.0.1:20128' in text          # OmniRoute
+        assert '127.0.0.1:11434' in text          # Ollama
+        assert 'api.groq.com' in text             # Groq free tier
+        assert 'generativelanguage.googleapis.com' in text   # Gemini free tier
+
+
+def test_local_llm_counts_as_configured(desktop_app):
+    """With Ollama / OmniRoute an empty LLM key is fine, so the app must not block setup."""
+    desktop_app.prepare_runtime_env(desktop_app.free_port(0))
+    from app import create_app
+
+    client = create_app().test_client()
+
+    # A remote provider without a key: still unconfigured
+    client.post('/api/desktop/config', json={
+        'LLM_BASE_URL': 'https://openrouter.ai/api/v1',
+        'LLM_API_KEY': '',
+        'ZEP_API_KEY': 'z_test_key',
+    })
+    assert client.get('/api/desktop/status').get_json()['data']['configured'] is False
+
+    # A local gateway needs no key, so this counts as configured
+    client.post('/api/desktop/config', json={
+        'LLM_BASE_URL': 'http://127.0.0.1:20128/v1',
+        'LLM_MODEL_NAME': 'auto',
+        'ZEP_API_KEY': 'z_test_key',
+    })
+    assert client.get('/api/desktop/status').get_json()['data']['configured'] is True

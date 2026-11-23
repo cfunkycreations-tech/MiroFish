@@ -15,22 +15,42 @@
       <section class="block">
         <h2>Large language model (required)</h2>
         <p class="hint">
-          Any OpenAI-compatible endpoint works. Common choices:
-          <span class="preset" @click="applyPreset('dashscope')">Alibaba Bailian</span>
-          <span class="preset" @click="applyPreset('openai')">OpenAI</span>
-          <span class="preset" @click="applyPreset('deepseek')">DeepSeek</span>
+          Any OpenAI-compatible endpoint works, including free ones. Pick a route to fill in the fields,
+          then paste your own key where the route needs one:
+        </p>
+        <p class="hint presets">
+          <span class="preset" :class="{ active: preset === 'openrouter-free' }" @click="applyPreset('openrouter-free')">OpenRouter (free models)</span>
+          <span class="preset" :class="{ active: preset === 'omniroute' }" @click="applyPreset('omniroute')">OmniRoute (local, free routing)</span>
+          <span class="preset" :class="{ active: preset === 'ollama' }" @click="applyPreset('ollama')">Ollama (local, no key)</span>
+          <span class="preset" :class="{ active: preset === 'groq' }" @click="applyPreset('groq')">Groq (free tier)</span>
+          <span class="preset" :class="{ active: preset === 'gemini' }" @click="applyPreset('gemini')">Google AI Studio (free tier)</span>
+          <span class="preset" :class="{ active: preset === 'dashscope' }" @click="applyPreset('dashscope')">Alibaba Bailian</span>
+          <span class="preset" :class="{ active: preset === 'openai' }" @click="applyPreset('openai')">OpenAI</span>
+          <span class="preset" :class="{ active: preset === 'deepseek' }" @click="applyPreset('deepseek')">DeepSeek</span>
+        </p>
+        <p class="hint small">
+          OpenRouter: keys are free at
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>.
+          The model <code>openrouter/free</code> always routes to a free model; any model whose
+          name ends in <code>:free</code> also costs nothing (for example
+          <code>openai/gpt-oss-120b:free</code> or <code>meta-llama/llama-3.3-70b-instruct:free</code>).
+          OmniRoute: a self-hosted gateway on <code>http://127.0.0.1:20128/v1</code>
+          (<code>npm install -g omniroute</code>, then <code>omniroute</code>);
+          the model <code>auto</code> lets it pick a free provider, and its key is optional by default.
+          The same preset fits 9Router, which also listens on port 20128.
+          Ollama: run <code>ollama serve</code> locally; no API key is needed, so put any placeholder in the key field.
         </p>
         <label>
           <span>API Key</span>
-          <input v-model="form.LLM_API_KEY" type="password" placeholder="sk-..." autocomplete="off" />
+          <input v-model="form.LLM_API_KEY" type="password" placeholder="sk-or-v1-... (OpenRouter) or sk-... for other providers" autocomplete="off" />
         </label>
         <label>
           <span>Base URL</span>
-          <input v-model="form.LLM_BASE_URL" type="text" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+          <input v-model="form.LLM_BASE_URL" type="text" placeholder="https://openrouter.ai/api/v1" />
         </label>
         <label>
           <span>Model name</span>
-          <input v-model="form.LLM_MODEL_NAME" type="text" placeholder="qwen-plus" />
+          <input v-model="form.LLM_MODEL_NAME" type="text" placeholder="openrouter/free" />
         </label>
       </section>
 
@@ -87,8 +107,8 @@ import service from '../api'
 const router = useRouter()
 const form = reactive({
   LLM_API_KEY: '',
-  LLM_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  LLM_MODEL_NAME: 'qwen-plus',
+  LLM_BASE_URL: 'https://openrouter.ai/api/v1',
+  LLM_MODEL_NAME: 'openrouter/free',
   ZEP_API_KEY: '',
   OASIS_DEFAULT_MAX_ROUNDS: ''
 })
@@ -98,8 +118,30 @@ const saving = ref(false)
 const testing = ref(false)
 const testResults = ref(null)
 const update = ref(null)
+const preset = ref('')
 
 const PRESETS = {
+  // Free / self-hosted routes first: these are the ones that cost nothing to run.
+  'openrouter-free': {
+    LLM_BASE_URL: 'https://openrouter.ai/api/v1',
+    LLM_MODEL_NAME: 'openrouter/free'
+  },
+  omniroute: {
+    LLM_BASE_URL: 'http://127.0.0.1:20128/v1',
+    LLM_MODEL_NAME: 'auto'
+  },
+  ollama: {
+    LLM_BASE_URL: 'http://127.0.0.1:11434/v1',
+    LLM_MODEL_NAME: 'llama3.1'
+  },
+  groq: {
+    LLM_BASE_URL: 'https://api.groq.com/openai/v1',
+    LLM_MODEL_NAME: 'llama-3.3-70b-versatile'
+  },
+  gemini: {
+    LLM_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    LLM_MODEL_NAME: 'gemini-2.5-flash'
+  },
   dashscope: {
     LLM_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     LLM_MODEL_NAME: 'qwen-plus'
@@ -116,6 +158,7 @@ const PRESETS = {
 
 function applyPreset(name) {
   Object.assign(form, PRESETS[name])
+  preset.value = name
 }
 
 function flash(type, text) {
@@ -254,6 +297,18 @@ onMounted(() => {
   color: #4cc9f0;
 }
 
+.hint.small {
+  font-size: 12px;
+  margin-top: -6px;
+}
+
+.hint code {
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
 .preset {
   display: inline-block;
   margin-right: 8px;
@@ -267,6 +322,17 @@ onMounted(() => {
 
 .preset:hover {
   background: rgba(76, 201, 240, 0.22);
+}
+
+.preset.active {
+  background: rgba(76, 201, 240, 0.3);
+  color: #ffffff;
+  border: 1px solid rgba(108, 216, 248, 0.55);
+}
+
+.presets {
+  margin-bottom: 16px;
+  line-height: 2.2;
 }
 
 label {

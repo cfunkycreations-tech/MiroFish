@@ -231,13 +231,24 @@ def write_readme(stage, mode):
     Upgrading the app never overwrites your configuration or data.
 
 2. API keys are required on first use
-    1. Open %APPDATA%\\MiroFish\\.env in Notepad
-    2. Fill in:
-           LLM_API_KEY      the LLM API key (any OpenAI-compatible endpoint)
-           LLM_BASE_URL     the endpoint address, e.g. https://dashscope.aliyuncs.com/compatible-mode/v1
-           LLM_MODEL_NAME   the model name, e.g. qwen-plus
-           ZEP_API_KEY      the Zep Cloud memory graph key (free tier at https://app.getzep.com/)
-    3. Save the file and restart MiroFish.exe
+    MiroFish opens its settings page on the first start; the fields can also be edited
+    by hand in %APPDATA%\\MiroFish\\.env. Everything is OpenAI-compatible:
+
+    Free and open routes (no paid account needed):
+      OpenRouter : LLM_BASE_URL=https://openrouter.ai/api/v1
+                   LLM_MODEL_NAME=openrouter/free
+                   free key at https://openrouter.ai/keys; ":free" models cost nothing
+      OmniRoute  : LLM_BASE_URL=http://127.0.0.1:20128/v1, LLM_MODEL_NAME=auto
+                   (npm install -g omniroute; its API key is optional by default)
+      Ollama     : LLM_BASE_URL=http://127.0.0.1:11434/v1, LLM_MODEL_NAME=llama3.1 (no key needed)
+      Groq       : LLM_BASE_URL=https://api.groq.com/openai/v1, llama-3.3-70b-versatile
+      Gemini     : LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai,
+                   gemini-2.5-flash
+    Paid routes: Alibaba Bailian (dashscope), OpenAI, DeepSeek.
+
+    LLM_API_KEY is required for remote providers; local ones (Ollama, LM Studio,
+    OmniRoute) work with the key left empty.
+    ZEP_API_KEY is the Zep Cloud memory graph key (free tier at https://app.getzep.com/).
 
 3. Not enough disk space?
     The install needs about 3 GB at peak (about 1.1 GB once finished). If space is tight:

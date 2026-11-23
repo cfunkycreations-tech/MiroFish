@@ -34,6 +34,25 @@ def env_path() -> str:
         os.path.dirname(__file__), '../../../.env')
 
 
+# Providers that run locally serve without authentication: the OpenAI SDK still
+# insists on a non-empty key, so fall back to a harmless placeholder.
+LOCAL_HOSTS = ('127.0.0.1', 'localhost', '0.0.0.0', '[::1]', 'host.docker.internal')
+
+
+def needs_key(base_url: str) -> bool:
+    """Whether this endpoint is a remote provider that authenticates with an API key."""
+    host = (base_url or '').split('//', 1)[-1].split('/', 1)[0].rsplit(':', 1)[0].lower()
+    return host not in LOCAL_HOSTS
+
+
+def is_configured(env: dict) -> bool:
+    """Enough settings for the app to start: an LLM (or a keyless local one) plus Zep."""
+    llm_key = env.get('LLM_API_KEY') or os.environ.get('LLM_API_KEY', '')
+    llm_url = env.get('LLM_BASE_URL') or os.environ.get('LLM_BASE_URL', '')
+    zep_key = env.get('ZEP_API_KEY') or os.environ.get('ZEP_API_KEY', '')
+    return bool(zep_key) and bool(llm_key or not needs_key(llm_url))
+
+
 def mask(value: str) -> str:
     if not value:
         return ''
@@ -99,7 +118,8 @@ def get_config():
         value = env.get(key) or os.environ.get(key, '')
         payload[key] = {'value': value, 'masked': mask(value)}
     payload['env_file'] = env_path()
-    payload['configured'] = bool(payload['LLM_API_KEY']['value'] and payload['ZEP_API_KEY']['value'])
+    payload['configured'] = is_configured({k: v['value'] for k, v in payload.items()
+                                           if isinstance(v, dict)})
     return jsonify({'success': True, 'data': payload})
 
 
@@ -177,11 +197,11 @@ def test_config():
     base_url = pick('LLM_BASE_URL', 'https://api.openai.com/v1')
     model = pick('LLM_MODEL_NAME', 'gpt-4o-mini')
     llm_key = pick('LLM_API_KEY')
-    if not llm_key:
+    if not llm_key and needs_key(base_url):
         results['llm'] = {'ok': False, 'detail': 'LLM_API_KEY is not set'}
     else:
         try:
-            results['llm'] = _test_llm(base_url, llm_key, model)
+            results['llm'] = _test_llm(base_url, llm_key or 'local', model)
         except Exception as exc:  # noqa: BLE001
             results['llm'] = {'ok': False, 'detail': f'{type(exc).__name__}: {exc}'[:300]}
 
@@ -239,6 +259,7 @@ def status():
             'python': sys.version.split()[0],
             'data_dir': os.path.abspath(data_dir),
             'env_file': env_path(),
-            'configured': bool(Config.LLM_API_KEY and Config.ZEP_API_KEY),
+            'configured': bool(Config.ZEP_API_KEY) and bool(
+                Config.LLM_API_KEY or not needs_key(Config.LLM_BASE_URL)),
         },
     })

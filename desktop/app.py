@@ -54,12 +54,21 @@ ENV_TEMPLATE = """\
 # Change the API keys below and restart MiroFish for them to take effect.
 
 # ---- LLM configuration (any OpenAI-compatible endpoint)----
-# e.g. Alibaba Bailian: https://dashscope.aliyuncs.com/compatible-mode/v1  /  qwen-plus
-#     OpenAI  : https://api.openai.com/v1                          /  gpt-4o-mini
-#     DeepSeek: https://api.deepseek.com/v1                        /  deepseek-chat
+# Free / open routes:
+#   OpenRouter : https://openrouter.ai/api/v1                     /  openrouter/free
+#                (free key at https://openrouter.ai/keys; models ending in ":free" cost nothing)
+#   OmniRoute  : http://127.0.0.1:20128/v1                        /  auto  (npm i -g omniroute; key optional)
+#                (self-hosted OpenAI-compatible gateway; adjust the port to yours)
+#   Ollama     : http://127.0.0.1:11434/v1                        /  llama3.1   (no key needed, use any placeholder)
+#   Groq       : https://api.groq.com/openai/v1                   /  llama-3.3-70b-versatile
+#   Gemini     : https://generativelanguage.googleapis.com/v1beta/openai  /  gemini-2.5-flash
+# Paid routes:
+#   Alibaba Bailian: https://dashscope.aliyuncs.com/compatible-mode/v1  /  qwen-plus
+#   OpenAI         : https://api.openai.com/v1                          /  gpt-4o-mini
+#   DeepSeek       : https://api.deepseek.com/v1                        /  deepseek-chat
 LLM_API_KEY=
-LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-LLM_MODEL_NAME=qwen-plus
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL_NAME=openrouter/free
 
 # ---- Zep Cloud memory graph (https://app.getzep.com/)----
 ZEP_API_KEY=
